@@ -1808,10 +1808,11 @@ kgsl_drawctxt_switch(struct kgsl_device *device, struct kgsl_drawctxt *drawctxt,
 					  drawctxt->reg_restore, 3);
 
 		/* restore shader instructions & partitioning. */
-		if (drawctxt->flags & CTXT_FLAGS_SHADER_RESTORE)
+		if (drawctxt->flags & CTXT_FLAGS_SHADER_RESTORE) {
 			KGSL_CTXT_DBG("restore shader");
 		kgsl_ringbuffer_issuecmds(device, 0,
 					  drawctxt->shader_restore, 3);
+		}
 
 		cmds[0] = pm4_type3_packet(PM4_SET_BIN_BASE_OFFSET, 1);
 		cmds[1] = drawctxt->bin_base_offset;
