@@ -9,7 +9,7 @@
 #include <asm/gpio.h>
 #include <asm/io.h>
 #include <linux/skbuff.h>
-#include <linux/wifi_tiwlan.h>
+#include <linux/wlan_plat.h>
 
 #include "board-liberty.h"
 
@@ -77,7 +77,11 @@ static struct resource liberty_wifi_resources[] = {
 		.name		= "bcm4329_wlan_irq",
 		.start		= MSM_GPIO_TO_INT(LIBERTY_GPIO_WIFI_IRQ1),
 		.end		= MSM_GPIO_TO_INT(LIBERTY_GPIO_WIFI_IRQ1),
+#ifdef BCM4329_HTC
 		.flags          = IORESOURCE_IRQ | IORESOURCE_IRQ_HIGHLEVEL,
+#else
+		.flags		= IORESOURCE_IRQ | IORESOURCE_IRQ_HIGHLEVEL | IORESOURCE_IRQ_SHAREABLE,
+#endif
 	},
 };
 
@@ -132,6 +136,10 @@ static int __init liberty_wifi_init(void)
 
 	printk("%s: start\n", __func__);
 	liberty_wifi_update_nvs("sd_oobonly=1\n");
+#ifndef CONFIG_BCM4329_HTC
+	liberty_wifi_update_nvs("btc_params80=0\n");
+	liberty_wifi_update_nvs("btc_params6=30\n");
+#endif
 	liberty_init_wifi_mem();
 	ret = platform_device_register(&liberty_wifi_device);
         return ret;

@@ -20,7 +20,12 @@ struct wifi_platform_data {
 	int (*set_reset)(int val);
 	int (*set_carddetect)(int val);
 	void *(*mem_prealloc)(int section, unsigned long size);
+#ifdef CONFIG_BCM4329_HTC
+	int dot11n_enable;
+	int cscan_enable;
+#else
 	int (*get_mac_addr)(unsigned char *buf);
+#endif
 };
 
 #endif
