@@ -225,7 +225,7 @@ static struct microp_function_config microp_functions[] = {
 static struct microp_function_config microp_lightsensor = {
 	.name = "light_sensor",
 	.category = MICROP_FUNCTION_LSENSOR,
-	.levels = { 0, 0x21, 0x4D, 0xDC, 0x134, 0x18D, 0x1E5, 0x2BA, 0x35C, 0x3FF },
+	.levels = { 0, 0x21, 0x4D, 0xDC, 0x134, 0x18D, 0x1E5, 0x3FF, 0x3FF, 0x3FF },
 	.channel = 3,
 	.int_pin = 1 << 9,
 	.golden_adc = 0xC0,
@@ -588,6 +588,7 @@ static struct capella_cm3602_platform_data capella_cm3602_pdata = {
 	.p_out = LATTE_GPIO_PROXIMITY_INT,
 	.p_en = LATTE_GPIO_PROXIMITY_EN,
 	.power = capella_cm3602_power,
+	.irq = MSM_GPIO_TO_INT(LATTE_GPIO_PROXIMITY_INT),
 };
 
 static struct platform_device capella_cm3602 = {
@@ -600,7 +601,6 @@ static struct platform_device capella_cm3602 = {
 #define CURCIAL_OJ_POWER            85
 static void curcial_oj_shutdown (int	enable)
 {
-
 }
 static int curcial_oj_poweron(int on)
 {
@@ -658,6 +658,7 @@ static struct curcial_oj_platform_data latte_oj_data = {
 	.Ysteps = {2, 3, 2, 2, 2, 2, 3, 3, 3, 3,
 		3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
 		3, 3, 3, 3, 3, 3, 3, 3, 3, 3},
+	.irq = MSM_uP_TO_INT(12),
 };
 
 static struct platform_device latte_oj = {
@@ -668,11 +669,17 @@ static struct platform_device latte_oj = {
 	}
 };
 
-static struct msm_i2c_device_platform_data latte_i2c_device_data = {
-	.i2c_clock = 400000,
-	.clock_strength = GPIO_8MA,
-	.data_strength = GPIO_4MA,
+static struct msm_i2c_device_platform_data msm_i2c_pdata = {
+        .i2c_clock = 400000,
+        .clock_strength = GPIO_8MA,
+        .data_strength = GPIO_4MA,
 };
+
+static void __init msm_device_i2c_init(void)
+{
+        msm_i2c_gpio_init();
+        msm_device_i2c.dev.platform_data = &msm_i2c_pdata;
+}
 
 static struct gpio_led espresso_led_list[] = {
 	{
@@ -914,9 +921,10 @@ static void __init latte_init(void)
 	 * not actually enable the chip until we apply power to it via
 	 * vreg.
 	 */
+	gpio_request(LATTE_GPIO_LS_EN, "ls_en");
 	gpio_direction_output(LATTE_GPIO_LS_EN, 0);
 	/* disable power for cm3602 chip */
-	__capella_cm3602_power(0);
+	/*__capella_cm3602_power(0);*/
 
 	msm_hw_reset_hook = latte_reset;
 
@@ -975,7 +983,8 @@ static void __init latte_init(void)
 	/* probe camera driver */
 	i2c_register_board_info(0, i2c_camera_devices, ARRAY_SIZE(i2c_camera_devices));
 
-	msm_device_i2c.dev.platform_data = &latte_i2c_device_data;
+	msm_device_i2c_init();
+
 	platform_add_devices(devices, ARRAY_SIZE(devices));
 	i2c_register_board_info(0, i2c_devices, ARRAY_SIZE(i2c_devices));
 

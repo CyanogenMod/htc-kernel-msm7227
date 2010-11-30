@@ -678,6 +678,7 @@ static struct capella_cm3602_platform_data capella_cm3602_pdata = {
 	.p_out = LIBERTY_GPIO_PROXIMITY_INT,
 	.p_en = LIBERTY_GPIO_PROXIMITY_EN,
 	.power = capella_cm3602_power,
+	.irq = MSM_GPIO_TO_INT(LIBERTY_GPIO_PROXIMITY_INT),
 };
 
 static struct platform_device capella_cm3602 = {
@@ -773,11 +774,17 @@ static struct platform_device liberty_oj = {
 	}
 };
 
-static struct msm_i2c_device_platform_data liberty_i2c_device_data = {
+static struct msm_i2c_device_platform_data msm_i2c_pdata = {
 	.i2c_clock = 400000,
 	.clock_strength = GPIO_8MA,
 	.data_strength = GPIO_4MA,
 };
+
+static void __init msm_device_i2c_init(void)
+{
+	msm_i2c_gpio_init();
+	msm_device_i2c.dev.platform_data = &msm_i2c_pdata;
+}
 
 static struct timed_gpio liberty_timed_gpios_str[] = {
 	{
@@ -1120,9 +1127,10 @@ static void __init liberty_init(void)
 	 * not actually enable the chip until we apply power to it via
 	 * vreg.
 	 */
+	gpio_request(LIBERTY_GPIO_LS_EN, "ls_en");
 	gpio_direction_output(LIBERTY_GPIO_LS_EN, 0);
 	/* disable power for cm3602 chip */
-	__capella_cm3602_power(0);
+	/*__capella_cm3602_power(0);*/
 
 	msm_hw_reset_hook = liberty_reset;
 
@@ -1180,7 +1188,8 @@ static void __init liberty_init(void)
 	/* probe camera driver */
 	i2c_register_board_info(0, i2c_camera_devices, ARRAY_SIZE(i2c_camera_devices));
 
-	msm_device_i2c.dev.platform_data = &liberty_i2c_device_data;
+	msm_device_i2c_init();
+
 	platform_add_devices(devices, ARRAY_SIZE(devices));
 	i2c_register_board_info(0, i2c_devices, ARRAY_SIZE(i2c_devices));
 
