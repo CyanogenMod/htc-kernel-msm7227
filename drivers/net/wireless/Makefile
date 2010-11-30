@@ -63,4 +63,8 @@ obj-$(CONFIG_WL12XX)	+= wl12xx/
 
 obj-$(CONFIG_IWM)	+= iwmc3200wifi/
 
-obj-$(CONFIG_BCM4329)	+= bcm4329/
+ifeq ($(CONFIG_BCM4329_HTC),y)
+  obj-$(CONFIG_BCM4329) += bcm4329_204/
+else  
+  obj-$(CONFIG_BCM4329)	+= bcm4329/
+endif
