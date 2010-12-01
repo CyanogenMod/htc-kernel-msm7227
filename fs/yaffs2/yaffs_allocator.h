@@ -13,24 +13,18 @@
  * Note: Only YAFFS headers are LGPL, YAFFS C code is covered by GPL.
  */
 
-#ifndef __YAFFS_GETBLOCKINFO_H__
-#define __YAFFS_GETBLOCKINFO_H__
+#ifndef __YAFFS_ALLOCATOR_H__
+#define __YAFFS_ALLOCATOR_H__
 
 #include "yaffs_guts.h"
-#include "yaffs_trace.h"
 
-/* Function to manipulate block info */
-static Y_INLINE struct yaffs_block_info *yaffs_get_block_info(struct yaffs_dev
-							      *dev, int blk)
-{
-	if (blk < dev->internal_start_block || blk > dev->internal_end_block) {
-		T(YAFFS_TRACE_ERROR,
-		  (TSTR
-		   ("**>> yaffs: get_block_info block %d is not valid" TENDSTR),
-		   blk));
-		YBUG();
-	}
-	return &dev->block_info[blk - dev->internal_start_block];
-}
+void yaffs_init_raw_tnodes_and_objs(struct yaffs_dev *dev);
+void yaffs_deinit_raw_tnodes_and_objs(struct yaffs_dev *dev);
+
+struct yaffs_tnode *yaffs_alloc_raw_tnode(struct yaffs_dev *dev);
+void yaffs_free_raw_tnode(struct yaffs_dev *dev, struct yaffs_tnode *tn);
+
+struct yaffs_obj *yaffs_alloc_raw_obj(struct yaffs_dev *dev);
+void yaffs_free_raw_obj(struct yaffs_dev *dev, struct yaffs_obj *obj);
 
 #endif
