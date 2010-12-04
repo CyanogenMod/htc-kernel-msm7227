@@ -88,7 +88,7 @@ static struct gpio_event_matrix_info liberty_keypad_matrix_info = {
 		  GPIOKPF_PRINT_UNMAPPED_KEYS /*|
 		   GPIOKPF_PRINT_MAPPED_KEYS */),
 	.setup_ninputs_gpio = liberty_matrix_inputs_gpio,
-	.detect_phone_status = 1,
+	.detect_phone_status = 0,
 };
 
 static struct gpio_event_direct_entry liberty_keypad_nav_map[] = {
