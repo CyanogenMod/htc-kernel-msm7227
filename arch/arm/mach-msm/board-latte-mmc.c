@@ -21,25 +21,18 @@
 #include <linux/debugfs.h>
 #include <linux/gpio.h>
 
+#include <asm/gpio.h>
 #include <asm/io.h>
 #include <asm/mach-types.h>
 #include <asm/mach/mmc.h>
 
 #include <mach/vreg.h>
 #include <mach/htc_pwrsink.h>
+#include <mach/msm_iomap.h>
 
 #include "devices.h"
 #include "board-latte.h"
 #include "proc_comm.h"
-
-#include <linux/dma-mapping.h>
-#include <mach/dma.h>
-#include "../../../drivers/mmc/host/msm_sdcc.h"
-
-#include <linux/jiffies.h>
-
-static unsigned long last_bt_enable_time=0;
-#define WIFI_ENABLE_DELAY_MS 1000
 
 /* #include <linux/irq.h> */
 
@@ -75,7 +68,7 @@ static int __init latte_disablesdcard_setup(char *str)
 	return 1;
 }
 
-__setup("board_espresso.disable_sdcard=", latte_disablesdcard_setup);
+__setup("board_latte.disable_sdcard=", latte_disablesdcard_setup);
 
 static struct vreg *vreg_sdslot;	/* SD slot power */
 
@@ -97,64 +90,56 @@ static uint32_t latte_sdslot_switchvdd(struct device *dev, unsigned int vdd)
 	int i;
 
 	BUG_ON(!vreg_sdslot);
-
 	if (vdd == sdslot_vdd)
 		return 0;
 
+	printk("%s::vdd=%08x sdslot_vdd=%08x\n",__func__,vdd,sdslot_vdd);
 	sdslot_vdd = vdd;
 
 	if (vdd == 0) {
 		printk(KERN_INFO "%s: Disabling SD slot power\n", __func__);
-		writel(MCI_PWR_OFF, MSM_SDC2_BASE + MMCIPOWER);
+		printk("off:MCI_Power=%08x\n", readl(MSM_SDC2_BASE));
+		writel(readl(MSM_SDC2_BASE) & 0xfffffffc, MSM_SDC2_BASE); /* MCI_Power */
+		printk("off:MCI_Power=%08x\n",readl(MSM_SDC2_BASE));
 		mdelay(1);
 		config_gpio_table(sdcard_off_gpio_table,
 				  ARRAY_SIZE(sdcard_off_gpio_table));
+		mdelay(1);
 		vreg_disable(vreg_sdslot);
 		sdslot_vreg_enabled = 0;
 		return 0;
 	}
 
 	if (!sdslot_vreg_enabled) {
-		mdelay(5);
 		vreg_enable(vreg_sdslot);
-	}
-
 	for (i = 0; i < ARRAY_SIZE(mmc_vdd_table); i++) {
 		if (mmc_vdd_table[i].mask == (1 << vdd)) {
 			printk(KERN_INFO "%s: Setting level to %u\n",
 					__func__, mmc_vdd_table[i].level);
 			vreg_set_level(vreg_sdslot, mmc_vdd_table[i].level);
-			if (!sdslot_vreg_enabled)
-				break;
-			else
-				return 0;
 		}
 	}
-
-	/* All vdd match failed */
-	if (i == ARRAY_SIZE(mmc_vdd_table))
-		goto out;
-
-	if (!sdslot_vreg_enabled) {
-		u32 pwr = 0;
-
-		/* Power on MCI controller */
 		mdelay(5);
-		pwr = readl(MSM_SDC2_BASE + MMCIPOWER);
-		writel(pwr | MCI_PWR_UP, MSM_SDC2_BASE + MMCIPOWER);
+		writel(readl(MSM_SDC2_BASE) | 0x2, MSM_SDC2_BASE); /* MCI_Power */
+		printk("on:MCI_Power=%08x\n", readl(MSM_SDC2_BASE));
 		mdelay(5);
-		pwr = readl(MSM_SDC2_BASE + MMCIPOWER);
-		writel(pwr | MCI_PWR_ON, MSM_SDC2_BASE + MMCIPOWER);
+		writel(readl(MSM_SDC2_BASE) | 0x3, MSM_SDC2_BASE); /* MCI_Power */
+		printk("on:MCI_Power=%08x\n", readl(MSM_SDC2_BASE));
 		mdelay(5);
-
-		/* ..then, config GPIO */
 		config_gpio_table(sdcard_on_gpio_table,
 				  ARRAY_SIZE(sdcard_on_gpio_table));
 		sdslot_vreg_enabled = 1;
 		return 0;
 	}
-
-out:
+	for (i = 0; i < ARRAY_SIZE(mmc_vdd_table); i++) {
+		if (mmc_vdd_table[i].mask == (1 << vdd)) {
+			printk(KERN_INFO "%s: Setting level to %u\n",
+					__func__, mmc_vdd_table[i].level);
+			vreg_set_level(vreg_sdslot, mmc_vdd_table[i].level);
+			mdelay(5);
+			return 0;
+		}
+	}
 	printk(KERN_ERR "%s: Invalid VDD %d specified\n", __func__, vdd);
 	return 0;
 }
@@ -167,7 +152,7 @@ static unsigned int latte_sdslot_status(struct device *dev)
 	return (!status);
 }
 
-#define LATTE_MMC_VDD	MMC_VDD_28_29 | MMC_VDD_29_30
+#define LATTE_MMC_VDD	(MMC_VDD_28_29 | MMC_VDD_29_30)
 
 static unsigned int latte_sdslot_type = MMC_TYPE_SD;
 
@@ -272,32 +257,68 @@ int latte_wifi_set_carddetect(int val)
 }
 EXPORT_SYMBOL(latte_wifi_set_carddetect);
 
-int latte_wifi_power_state = 0;
-int latte_bt_power_state = 0;
+#define ID_WIFI	0
+#define ID_BT	1
+#define CLK_OFF	0
+#define CLK_ON	1
+int latte_fast_clk_state_wifi = CLK_OFF;
+int latte_fast_clk_state_bt = CLK_OFF;
+static DEFINE_SPINLOCK(latte_f_slock);
+
+static int fast_clk_ctl(int on, int id)
+{
+	unsigned long flags;
+	int rc = 0;
+
+	if (!vreg_wifi_osc)
+		printk(KERN_DEBUG "--- %s vreg_wifi_osc==NULL ---\n", __func__);
+
+	printk(KERN_DEBUG "--- %s ON=%d, ID=%s ---\n",
+		__func__, on, id ? "BT":"WIFI");
+
+	spin_lock_irqsave(&latte_f_slock, flags);
+	if (on) {
+		if ((CLK_OFF == latte_fast_clk_state_wifi)
+			&& (CLK_OFF == latte_fast_clk_state_bt)) {
+
+			rc = vreg_enable(vreg_wifi_osc);
+		}
+
+		if (id == ID_BT)
+			latte_fast_clk_state_bt = CLK_ON;
+		else
+			latte_fast_clk_state_wifi = CLK_ON;
+	} else {
+		if (((id == ID_BT) && (CLK_OFF == latte_fast_clk_state_wifi))
+			|| ((id == ID_WIFI)
+			&& (CLK_OFF == latte_fast_clk_state_bt))) {
+
+			vreg_disable(vreg_wifi_osc);
+		} else {
+			printk(KERN_DEBUG "KEEP SLEEP CLK ALIVE\n");
+		}
+
+		if (id)
+			latte_fast_clk_state_bt = CLK_OFF;
+		else
+			latte_fast_clk_state_wifi = CLK_OFF;
+	}
+	spin_unlock_irqrestore(&latte_f_slock, flags);
+
+	return 0;
+}
 
 int latte_wifi_power(int on)
 {
 	int rc = 0;
-	unsigned long t, v;
 
 	printk(KERN_INFO "%s: %d\n", __func__, on);
 
 	if (on) {
-		t = jiffies;
-
-		v = t - last_bt_enable_time;
-		//printk(KERN_INFO "%s: v: %lu\n", __func__, v);
-		if (v < HZ) {
-			printk(KERN_INFO "%s: workarond for BT/WIFI initial at the same time - delay wifi enabling (msleep(%d))\n",
-					__func__, WIFI_ENABLE_DELAY_MS);
-			msleep(WIFI_ENABLE_DELAY_MS);
-			printk(KERN_INFO "%s: finish wifi delaying\n", __func__);
-		}
-
 		config_gpio_table(wifi_on_gpio_table,
 				  ARRAY_SIZE(wifi_on_gpio_table));
 
-		rc = vreg_enable(vreg_wifi_osc);
+		fast_clk_ctl(1, ID_WIFI);
 		mdelay(100);
 
 		gpio_set_value(LATTE_GPIO_WIFI_EN, 1);
@@ -319,15 +340,9 @@ int latte_wifi_power(int on)
 
 		htc_pwrsink_set(PWRSINK_WIFI, 0);
 
-		if (!latte_bt_power_state) {
-			vreg_disable(vreg_wifi_osc);
-			printk(KERN_INFO "WiFi disable vreg_wifi_osc.\n");
-		} else
-			printk(KERN_ERR "WiFi shouldn't disable "
-					"vreg_wifi_osc. BT is using it!!\n");
+		fast_clk_ctl(0, ID_WIFI);
 	}
 
-	latte_wifi_power_state = on;
 	return 0;
 }
 EXPORT_SYMBOL(latte_wifi_power);
@@ -341,10 +356,7 @@ int latte_bt_fastclock_power(int on)
 
 	if (vreg_wifi_osc) {
 		if (on) {
-			rc = vreg_enable(vreg_wifi_osc);
-
-			last_bt_enable_time = jiffies;
-			//printk(KERN_INFO "%s: enable time %lu\n", __func__, last_bt_enable_time);
+			rc = fast_clk_ctl(1, ID_BT);
 
 			if (rc) {
 				printk(KERN_ERR "Error turn bt_fastclock_power"
@@ -352,11 +364,9 @@ int latte_bt_fastclock_power(int on)
 				return rc;
 			}
 		} else {
-			if (!latte_wifi_power_state)
-				vreg_disable(vreg_wifi_osc);
+			fast_clk_ctl(0, ID_BT);
 		}
 	}
-	latte_bt_power_state = on;
 	return 0;
 }
 EXPORT_SYMBOL(latte_bt_fastclock_power);
@@ -392,7 +402,6 @@ int __init latte_init_mmc(unsigned int sys_rev)
 
 	wifi_status_cb = NULL;
 
-
 	printk(KERN_INFO "%s\n", __func__);
 
 	vreg_wifi_osc = vreg_get(0, "rftx");
@@ -416,6 +425,7 @@ int __init latte_init_mmc(unsigned int sys_rev)
 
 	msm_add_sdcc(2, &latte_sdslot_data, MSM_GPIO_TO_INT(LATTE_GPIO_SDMC_CD_N),
 			IORESOURCE_IRQ_LOWEDGE | IORESOURCE_IRQ_HIGHEDGE);
+
 done:
 	return 0;
 }
