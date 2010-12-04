@@ -44,17 +44,17 @@ static unsigned int liberty_row_gpios[] = {
 
 static const unsigned short liberty_keymap[ARRAY_SIZE(liberty_col_gpios) *
 					ARRAY_SIZE(liberty_row_gpios)] = {
-	[KEYMAP_INDEX(0, 0)] = BTN_MOUSE,
-	[KEYMAP_INDEX(0, 1)] = KEY_MENU,
-	[KEYMAP_INDEX(0, 2)] = KEY_HOME,
+	[KEYMAP_INDEX(0, 0)] = KEY_VOLUMEUP,
+	[KEYMAP_INDEX(0, 1)] = KEY_VOLUMEDOWN,
+	[KEYMAP_INDEX(0, 2)] = KEY_RESERVED,
 
-	[KEYMAP_INDEX(1, 0)] = KEY_VOLUMEUP,
-	[KEYMAP_INDEX(1, 1)] = KEY_VOLUMEDOWN,
-	[KEYMAP_INDEX(1, 2)] = KEY_RESERVED,
+	[KEYMAP_INDEX(1, 0)] = KEY_BACK,
+	[KEYMAP_INDEX(1, 1)] = KEY_SEND,
+	[KEYMAP_INDEX(1, 2)] = KEY_END,
 
-	[KEYMAP_INDEX(2, 0)] = KEY_BACK,
-	[KEYMAP_INDEX(2, 1)] = KEY_RESERVED,
-	[KEYMAP_INDEX(2, 2)] = KEY_SEARCH,
+	[KEYMAP_INDEX(2, 0)] = KEY_MENU,
+	[KEYMAP_INDEX(2, 1)] = KEY_HOME,
+	[KEYMAP_INDEX(2, 2)] = BTN_MOUSE, /* OJ_ACTION */
 };
 
 static void liberty_matrix_inputs_gpio(void)
