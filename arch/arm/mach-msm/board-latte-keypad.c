@@ -211,6 +211,7 @@ static void latte_matrix_inputs_gpio(void)
 
 static struct gpio_event_matrix_info latte_keypad_matrix_info = {
 	.info.func = gpio_event_matrix_func,
+	.info.oj_btn = true,
 	.keymap = latte_keymap_x1,
 	.output_gpios = latte_col_gpios,
 	.input_gpios = latte_row_gpios,
@@ -230,6 +231,7 @@ static struct gpio_event_direct_entry latte_keypad_power_map[] = {
 	{
 		.gpio = LATTE_POWER_KEY,
 		.code = KEY_POWER,
+		.wakeup = 1,
 	},
 };
 
@@ -258,7 +260,8 @@ static struct gpio_event_input_info latte_keypad_power_info = {
 static struct gpio_event_direct_entry latte_sliding_switch[] = {
 	{
 		.gpio = LATTE_GPIO_SLIDING_DET,
-		.code = SW_LID
+		.code = SW_LID,
+		.wakeup = 1,
 	},
 };
 
