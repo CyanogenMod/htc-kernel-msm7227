@@ -136,10 +136,8 @@ static int __init liberty_wifi_init(void)
 
 	printk("%s: start\n", __func__);
 	liberty_wifi_update_nvs("sd_oobonly=1\n");
-#ifndef CONFIG_BCM4329_HTC
 	liberty_wifi_update_nvs("btc_params80=0\n");
 	liberty_wifi_update_nvs("btc_params6=30\n");
-#endif
 	liberty_init_wifi_mem();
 	ret = platform_device_register(&liberty_wifi_device);
         return ret;
