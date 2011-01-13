@@ -1475,46 +1475,6 @@ void mmc_set_embedded_sdio_data(struct mmc_host *host,
 	host->embedded_sdio_data.cccr = cccr;
 	host->embedded_sdio_data.funcs = funcs;
 	host->embedded_sdio_data.num_funcs = num_funcs;
-
-	struct mmc_host *host = container_of(
-		notify_block, struct mmc_host, pm_notify);
-	unsigned long flags;
-
-
-	switch (mode) {
-	case PM_HIBERNATION_PREPARE:
-	case PM_SUSPEND_PREPARE:
-
-		spin_lock_irqsave(&host->lock, flags);
-		host->rescan_disable = 1;
-		spin_unlock_irqrestore(&host->lock, flags);
-		cancel_delayed_work_sync(&host->detect);
-
-		if (!host->bus_ops || host->bus_ops->suspend)
-			break;
-
-		mmc_claim_host(host);
-
-		if (host->bus_ops->remove)
-			host->bus_ops->remove(host);
-
-		mmc_detach_bus(host);
-		mmc_release_host(host);
-		host->pm_flags = 0;
-		break;
-
-	case PM_POST_SUSPEND:
-	case PM_POST_HIBERNATION:
-	case PM_POST_RESTORE:
-
-		spin_lock_irqsave(&host->lock, flags);
-		host->rescan_disable = 0;
-		spin_unlock_irqrestore(&host->lock, flags);
-		mmc_detect_change(host, 0);
-
-	}
-
-	return 0;
 }
 
 EXPORT_SYMBOL(mmc_set_embedded_sdio_data);
