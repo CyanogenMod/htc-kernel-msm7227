@@ -958,7 +958,9 @@ static void __init latte_init(void)
 
 #ifdef CONFIG_SERIAL_MSM_HS
 	msm_device_uart_dm1.dev.platform_data = &msm_uart_dm1_pdata;
+#ifndef CONFIG_SERIAL_MSM_HS_PURE_ANDROID
 	msm_device_uart_dm1.name = "msm_serial_hs_ti"; /* for ti */
+#endif
 	msm_add_serial_devices(3);
 #else
 	msm_add_serial_devices(0);
