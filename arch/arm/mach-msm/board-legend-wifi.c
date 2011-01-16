@@ -20,7 +20,7 @@
 #include <linux/vmalloc.h>
 #include <linux/err.h>
 #include <asm/mach-types.h>
-#include <linux/wlan_plat.h>
+#include <linux/wifi_tiwlan.h>
 
 extern int legend_wifi_set_carddetect(int val);
 extern int legend_wifi_power(int on);

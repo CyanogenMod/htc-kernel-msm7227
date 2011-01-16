@@ -19,7 +19,7 @@
 #include <linux/platform_device.h>
 #include <linux/vmalloc.h>
 #include <linux/err.h>
-#include <linux/wlan_plat.h>
+#include <linux/wifi_tiwlan.h>
 
 extern int latte_wifi_set_carddetect(int val);
 extern int latte_wifi_power(int on);
