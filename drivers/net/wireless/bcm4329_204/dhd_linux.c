@@ -63,13 +63,13 @@
 #endif
 #include <linux/freezer.h>
 #if defined(CUSTOMER_HW2) && defined(CONFIG_WIFI_CONTROL_FUNC)
-#include <linux/wifi_tiwlan.h>
+#include <linux/wifi_bcm.h>
 
 struct semaphore wifi_control_sem;
 
 struct dhd_bus *g_bus;
 
-static struct wifi_platform_data *wifi_control_data = NULL;
+static struct bcm_wifi_platform_data *wifi_control_data = NULL;
 static struct resource *wifi_irqres = NULL;
 
 #if 0
@@ -132,8 +132,8 @@ int wifi_set_reset(int on, unsigned long msec)
 
 static int wifi_probe(struct platform_device *pdev)
 {
-	struct wifi_platform_data *wifi_ctrl =
-		(struct wifi_platform_data *)(pdev->dev.platform_data);
+	struct bcm_wifi_platform_data *wifi_ctrl =
+		(struct bcm_wifi_platform_data *)(pdev->dev.platform_data);
 
 	DHD_TRACE(("## %s\n", __FUNCTION__));
 	wifi_irqres = platform_get_resource_byname(pdev, IORESOURCE_IRQ, "bcm4329_wlan_irq");
@@ -148,8 +148,8 @@ static int wifi_probe(struct platform_device *pdev)
 
 static int wifi_remove(struct platform_device *pdev)
 {
-	struct wifi_platform_data *wifi_ctrl =
-		(struct wifi_platform_data *)(pdev->dev.platform_data);
+	struct bcm_wifi_platform_data *wifi_ctrl =
+		(struct bcm_wifi_platform_data *)(pdev->dev.platform_data);
 
 	DHD_TRACE(("## %s\n", __FUNCTION__));
 	wifi_control_data = wifi_ctrl;

@@ -9,7 +9,7 @@
 #include <asm/gpio.h>
 #include <asm/io.h>
 #include <linux/skbuff.h>
-#include <linux/wlan_plat.h>
+#include <linux/wifi_bcm.h>
 
 #include "board-liberty.h"
 
@@ -85,7 +85,7 @@ static struct resource liberty_wifi_resources[] = {
 	},
 };
 
-static struct wifi_platform_data liberty_wifi_control = {
+static struct bcm_wifi_platform_data liberty_wifi_control = {
 	.set_power      = liberty_wifi_power,
 	.set_reset      = liberty_wifi_reset,
 	.set_carddetect = liberty_wifi_set_carddetect,
