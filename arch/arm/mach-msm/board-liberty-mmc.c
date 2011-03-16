@@ -162,7 +162,7 @@ static unsigned int liberty_sdslot_status(struct device *dev)
 	return (!status);
 }
 
-#define LIBERTY_MMC_VDD	MMC_VDD_28_29 | MMC_VDD_29_30
+#define LIBERTY_MMC_VDD		(MMC_VDD_28_29 | MMC_VDD_29_30)
 
 static unsigned int liberty_sdslot_type = MMC_TYPE_SD;
 
@@ -289,6 +289,7 @@ int __init liberty_init_mmc(unsigned int sys_rev)
 	/* initial WIFI_SHUTDOWN */
 	id = PCOM_GPIO_CFG(LIBERTY_GPIO_WIFI_EN, 0, GPIO_OUTPUT, GPIO_NO_PULL, GPIO_2MA),
 	msm_proc_comm(PCOM_RPC_GPIO_TLMM_CONFIG_EX, &id, 0);
+	gpio_set_value(LIBERTY_GPIO_WIFI_EN, 0);
 
 	wifi_status_cb = NULL;
 

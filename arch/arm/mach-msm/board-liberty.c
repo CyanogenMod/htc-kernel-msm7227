@@ -93,117 +93,48 @@ void config_liberty_proximity_gpios(int on);
 void __init liberty_microp_init(void);
 #endif
 
-static void liberty_phy_reset(void)
-{
-        int ret;
-        printk(KERN_INFO "msm_hsusb_phy_reset\n");
-        ret = msm_proc_comm(PCOM_MSM_HSUSB_PHY_RESET,
-                        NULL, NULL);
-        if (ret)
-                printk(KERN_INFO "%s failed\n", __func__);
-}
-
-#ifdef CONFIG_USB_ANDROID
-static struct msm_hsusb_platform_data msm_hsusb_pdata = {
-        //.phy_init_seq           = liberty_phy_init_seq,
-        .phy_reset              = liberty_phy_reset,
-        .usb_id_pin_gpio =  LIBERTY_GPIO_USB_ID_PIN,
-};
-
-static struct usb_mass_storage_platform_data mass_storage_pdata = {
-        .nluns          = 1,
-        .vendor         = "HTC",
-        .product        = "Android Phone",
-        .release        = 0x0100,
-};
-
-static struct platform_device usb_mass_storage_device = {
-        .name   = "usb_mass_storage",
-        .id     = -1,
-        .dev    = {
-                .platform_data = &mass_storage_pdata,
-        },
-};
-
-#ifdef CONFIG_USB_ANDROID_RNDIS
-static struct usb_ether_platform_data rndis_pdata = {
-	/* ethaddr is filled by board_serialno_setup */
-	.vendorID	= 0x18d1,
-	.vendorDescr	= "Google, Inc.",
-};
-
-static struct platform_device rndis_device = {
-	.name	= "rndis",
-	.id	= -1,
-	.dev	= {
-		.platform_data = &rndis_pdata,
-	},
-};
-#endif
-
-static struct android_usb_platform_data android_usb_pdata = {
-        .vendor_id      = 0x0bb4,
-        .product_id     = 0x0c97,
-        .version        = 0x0100,
-        .product_name           = "Android Phone",
-        .manufacturer_name      = "HTC",
-        .num_products = ARRAY_SIZE(usb_products),
-        .products = usb_products,
-        .num_functions = ARRAY_SIZE(usb_functions_all),
-        .functions = usb_functions_all,
-};
-
-static struct platform_device android_usb_device = {
-        .name   = "android_usb",
-        .id             = -1,
-        .dev            = {
-                .platform_data = &android_usb_pdata,
-        },
-};
-#endif
-
 /* HTC_HEADSET_GPIO Driver */
 static struct htc_headset_gpio_platform_data htc_headset_gpio_data = {
-        .hpin_gpio              = LIBERTY_GPIO_35MM_HEADSET_DET,
-        .key_enable_gpio        = 0,
-        .mic_select_gpio        = 0,
+	.hpin_gpio		= LIBERTY_GPIO_35MM_HEADSET_DET,
+	.key_enable_gpio	= 0,
+	.mic_select_gpio	= 0,
 };
 
 static struct platform_device htc_headset_gpio = {
-        .name   = "HTC_HEADSET_GPIO",
-        .id     = -1,
-        .dev    = {
-                .platform_data  = &htc_headset_gpio_data,
-        },
+	.name	= "HTC_HEADSET_GPIO",
+	.id	= -1,
+	.dev	= {
+		.platform_data	= &htc_headset_gpio_data,
+	},
 };
 
 /* HTC_HEADSET_MICROP Driver */
 static struct htc_headset_microp_platform_data htc_headset_microp_data = {
-        .remote_int             = 1 << 5,
-        .remote_irq             = MSM_uP_TO_INT(5),
-        .remote_enable_pin      = 0,
-        .adc_channel            = 0x01,
-        .adc_remote             = {0, 33, 38, 82, 95, 167},
+	.remote_int		= 1 << 5,
+	.remote_irq		= MSM_uP_TO_INT(5),
+	.remote_enable_pin	= 0,
+	.adc_channel		= 0x01,
+	.adc_remote		= {0, 33, 38, 82, 95, 167},
 };
 
 static struct platform_device htc_headset_microp = {
-        .name   = "HTC_HEADSET_MICROP",
-        .id     = -1,
-        .dev    = {
-                .platform_data  = &htc_headset_microp_data,
-        },
+	.name	= "HTC_HEADSET_MICROP",
+	.id	= -1,
+	.dev	= {
+		.platform_data	= &htc_headset_microp_data,
+	},
 };
 
 /* HTC_HEADSET_MGR Driver */
 static struct platform_device *headset_devices[] = {
-        &htc_headset_microp,
-        &htc_headset_gpio,
-        /* Please put the headset detection driver on the last */
+	&htc_headset_microp,
+	&htc_headset_gpio,
+	/* Please put the headset detection driver on the last */
 };
 
 static struct htc_headset_mgr_platform_data htc_headset_mgr_data = {
-        .headset_devices_num    = ARRAY_SIZE(headset_devices),
-        .headset_devices        = headset_devices,
+	.headset_devices_num	= ARRAY_SIZE(headset_devices),
+	.headset_devices	= headset_devices,
 };
 
 static struct htc_battery_platform_data htc_battery_pdev_data = {
@@ -223,13 +154,6 @@ static struct platform_device htc_battery_pdev = {
 static int capella_cm3602_power(int pwr_device, uint8_t enable);
 
 static struct microp_function_config microp_functions[] = {
-	{
-		.name   = "remote-key",
-		.category = MICROP_FUNCTION_REMOTEKEY,
-		.levels = {0, 33, 38, 82, 95, 167},
-		.channel = 1,
-		.int_pin = 1 << 5,
-	},
 	{
 		.name   = "microp_intrrupt",
 		.category = MICROP_FUNCTION_INTR,
@@ -308,13 +232,13 @@ static struct platform_device microp_devices[] = {
 			.platform_data = &liberty_g_sensor_pdata,
 		},
 	},
-        {
-                .name   = "HTC_HEADSET_MGR",
-                .id     = -1,
-                .dev    = {
-                        .platform_data  = &htc_headset_mgr_data,
-                },
-        },
+	{
+		.name	= "HTC_HEADSET_MGR",
+		.id	= -1,
+		.dev	= {
+			.platform_data	= &htc_headset_mgr_data,
+		},
+	},
 };
 
 static struct microp_i2c_platform_data microp_data = {
@@ -385,7 +309,7 @@ struct atmel_i2c_platform_data liberty_ts_atmel_data[] = {
 		.config_T6 = {0, 0, 0, 0, 0, 0},
 		.config_T7 = {50, 15, 25},
 		.config_T8 = {7, 0, 10, 10, 0, 0, 10, 15},
-		.config_T9 = {139, 0, 0, 16, 10, 0, 16, 30, 3, 1, 10, 10, 5, 15, 2, 10, 20, 0, 0, 0, 0, 0, 254, 2, 42, 36, 154, 54, 142, 89, 40},
+		.config_T9 = {139, 0, 0, 16, 10, 0, 16, 40, 3, 1, 10, 10, 5, 15, 3, 10, 20, 0, 0, 0, 0, 0, 254, 2, 42, 36, 154, 54, 142, 89, 40},
 		.config_T15 = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 		.config_T19 = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 		.config_T20 = {7, 0, 0, 0, 0, 0, 0, 35, 20, 4, 15, 0},
@@ -395,7 +319,7 @@ struct atmel_i2c_platform_data liberty_ts_atmel_data[] = {
 		.config_T25 = {3, 0, 200, 50, 64, 31, 0, 0, 0, 0, 0, 0, 0, 0},
 		.config_T27 = {0, 0, 0, 0, 0, 0, 0},
 		.config_T28 = {0, 0, 0, 4, 8, 60},
-		.object_crc = {0x4D, 0xBB, 0xD0},
+		.object_crc = {0xDC, 0x1F, 0x50},
 		.cable_config = {30, 30, 8, 16},
 	},
 	{
@@ -453,6 +377,75 @@ struct atmel_i2c_platform_data liberty_ts_atmel_data[] = {
 	}
 };
 
+static int liberty_phy_init_seq[] = { 0x1D, 0x0D, 0x1D, 0x10, -1 };
+static void liberty_phy_reset(void)
+{
+	int ret;
+	printk(KERN_INFO "msm_hsusb_phy_reset\n");
+	ret = msm_proc_comm(PCOM_MSM_HSUSB_PHY_RESET,
+			NULL, NULL);
+	if (ret)
+		printk(KERN_INFO "%s failed\n", __func__);
+}
+
+#ifdef CONFIG_USB_ANDROID
+static struct msm_hsusb_platform_data msm_hsusb_pdata = {
+	.phy_init_seq		= liberty_phy_init_seq,
+	.phy_reset		= liberty_phy_reset,
+	.usb_id_pin_gpio =  LIBERTY_GPIO_USB_ID_PIN,
+};
+
+static struct usb_mass_storage_platform_data mass_storage_pdata = {
+	.nluns		= 1,
+	.vendor		= "HTC",
+	.product	= "Android Phone",
+	.release	= 0x0100,
+};
+
+static struct platform_device usb_mass_storage_device = {
+	.name	= "usb_mass_storage",
+	.id	= -1,
+	.dev	= {
+		.platform_data = &mass_storage_pdata,
+	},
+};
+
+#ifdef CONFIG_USB_ANDROID_RNDIS
+static struct usb_ether_platform_data rndis_pdata = {
+	/* ethaddr is filled by board_serialno_setup */
+	.vendorID	= 0x18d1,
+	.vendorDescr	= "Google, Inc.",
+};
+
+static struct platform_device rndis_device = {
+	.name	= "rndis",
+	.id	= -1,
+	.dev	= {
+		.platform_data = &rndis_pdata,
+	},
+};
+#endif
+
+static struct android_usb_platform_data android_usb_pdata = {
+	.vendor_id	= 0x0bb4,
+	.product_id	= 0x0c92,
+	.version	= 0x0100,
+	.product_name		= "Android Phone",
+	.manufacturer_name	= "HTC",
+	.num_products = ARRAY_SIZE(usb_products),
+	.products = usb_products,
+	.num_functions = ARRAY_SIZE(usb_functions_all),
+	.functions = usb_functions_all,
+};
+
+static struct platform_device android_usb_device = {
+	.name	= "android_usb",
+	.id		= -1,
+	.dev		= {
+		.platform_data = &android_usb_pdata,
+	},
+};
+#endif
 static struct akm8973_platform_data compass_platform_data = {
 	.layouts = LIBERTY_LAYOUTS,
 	.project_name = LIBERTY_PROJECT_NAME,
@@ -1146,7 +1139,7 @@ static void __init liberty_init(void)
 	gpio_request(LIBERTY_GPIO_LS_EN, "ls_en");
 	gpio_direction_output(LIBERTY_GPIO_LS_EN, 0);
 	/* disable power for cm3602 chip */
-	/*__capella_cm3602_power(0);*/
+	/* __capella_cm3602_power(0); */
 
 	msm_hw_reset_hook = liberty_reset;
 
@@ -1173,19 +1166,26 @@ static void __init liberty_init(void)
 #endif
 
 	msm_add_serial_devices(2);
+	/*
+	msm_change_usb_id(0x0bb4, 0x0c10);
+	*/
+#ifdef CONFIG_USB_FUNCTION
+	msm_add_usb_id_pin_gpio(LIBERTY_GPIO_USB_ID_PIN);
+	msm_add_usb_devices(liberty_phy_reset, NULL);
+#endif
 
 #ifdef CONFIG_USB_ANDROID
-        android_usb_pdata.products[0].product_id =
-                android_usb_pdata.product_id;
-        android_usb_pdata.serial_number = board_serialno();
-        msm_hsusb_pdata.serial_number = board_serialno();
-        msm_device_hsusb.dev.platform_data = &msm_hsusb_pdata;
-        platform_device_register(&msm_device_hsusb);
+	android_usb_pdata.products[0].product_id =
+		android_usb_pdata.product_id;
+	android_usb_pdata.serial_number = board_serialno();
+	msm_hsusb_pdata.serial_number = board_serialno();
+	msm_device_hsusb.dev.platform_data = &msm_hsusb_pdata;
+	platform_device_register(&msm_device_hsusb);
 #ifdef CONFIG_USB_ANDROID_RNDIS
 	platform_device_register(&rndis_device);
 #endif
-        platform_device_register(&usb_mass_storage_device);
-        platform_device_register(&android_usb_device);
+	platform_device_register(&usb_mass_storage_device);
+	platform_device_register(&android_usb_device);
 #endif
 	msm_add_mem_devices(&pmem_setting);
 
@@ -1208,9 +1208,10 @@ static void __init liberty_init(void)
 	i2c_register_board_info(0, i2c_camera_devices, ARRAY_SIZE(i2c_camera_devices));
 
 	msm_device_i2c_init();
-
 	platform_add_devices(devices, ARRAY_SIZE(devices));
 	i2c_register_board_info(0, i2c_devices, ARRAY_SIZE(i2c_devices));
+
+	liberty_init_panel();
 
 	liberty_init_keypad();
 }

@@ -121,6 +121,11 @@ static unsigned liberty_wifi_update_nvs(char *str)
 	if (ptr[NVS_DATA_OFFSET + len -1] == 0)
 		len -= 1;
 
+	if (ptr[NVS_DATA_OFFSET + len -1] != '\n') {
+		len += 1;
+		ptr[NVS_DATA_OFFSET + len -1] = '\n';
+	}
+
 	strcpy(ptr + NVS_DATA_OFFSET + len, str);
 	len += strlen(str);
 	memcpy(ptr + NVS_LEN_OFFSET, &len, sizeof(len));

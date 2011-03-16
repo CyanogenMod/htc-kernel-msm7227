@@ -269,12 +269,12 @@ static void liberty_config_bt_off(void)
 #if 1
 static int bluetooth_set_power(void *data, bool blocked)
 {
-        if (!blocked)
-                liberty_config_bt_on();
-        else
-                liberty_config_bt_off();
+	if (!blocked)
+		liberty_config_bt_on();
+	else
+		liberty_config_bt_off();
 
-        return 0;
+	return 0;
 }
 #else
 static int bluetooth_set_power(void *data, enum rfkill_state state)
@@ -294,8 +294,9 @@ static int bluetooth_set_power(void *data, enum rfkill_state state)
 }
 #endif
 
+#if 1
 static struct rfkill_ops liberty_rfkill_ops = {
-        .set_block = bluetooth_set_power,
+	.set_block = bluetooth_set_power,
 };
 
 static int liberty_rfkill_probe(struct platform_device *pdev)
@@ -310,7 +311,7 @@ static int liberty_rfkill_probe(struct platform_device *pdev)
 	bt_rfk = rfkill_alloc(bt_name, &pdev->dev, RFKILL_TYPE_BLUETOOTH,
 						 &liberty_rfkill_ops, NULL);
 	if (!bt_rfk) {
-		return -ENOMEM;
+		rc = -ENOMEM;
 		goto err_rfkill_reset;
 	}
 
@@ -328,6 +329,41 @@ err_rfkill_reg:
 err_rfkill_reset:
 	return rc;
 }
+#else
+static int liberty_rfkill_probe(struct platform_device *pdev)
+{
+	int rc = 0;
+	enum rfkill_state default_state = RFKILL_STATE_SOFT_BLOCKED;
+
+	liberty_config_bt_init();	/* bt gpio initial config */
+
+	rfkill_set_default(RFKILL_TYPE_BLUETOOTH, default_state);
+	bluetooth_set_power(NULL, default_state);
+
+	bt_rfk = rfkill_allocate(&pdev->dev, RFKILL_TYPE_BLUETOOTH);
+	if (!bt_rfk)
+		return -ENOMEM;
+
+	bt_rfk->name = bt_name;
+	bt_rfk->state = default_state;
+
+	/* userspace cannot take exclusive control */
+	bt_rfk->user_claim_unsupported = 1;
+	bt_rfk->user_claim = 0;
+	bt_rfk->data = NULL;
+	bt_rfk->toggle_radio = bluetooth_set_power;
+
+	rc = rfkill_register(bt_rfk);
+	if (rc)
+		goto err_rfkill_reg;
+
+	return 0;
+
+err_rfkill_reg:
+	rfkill_free(bt_rfk);
+	return rc;
+}
+#endif
 
 static int liberty_rfkill_remove(struct platform_device *dev)
 {

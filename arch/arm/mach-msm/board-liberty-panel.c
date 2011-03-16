@@ -28,7 +28,6 @@
 
 #include <mach/msm_fb.h>
 #include <mach/vreg.h>
-/* #include <mach/pmic.h> */
 
 #include "devices.h"
 #include "board-liberty.h"
@@ -153,6 +152,8 @@ static struct msm_mddi_bridge_platform_data eid_client_data = {
 	.fb_data = {
 		.xres = 320,
 		.yres = 480,
+		.width = 45,
+		.height = 67,
 		.output_format = 0,
 	},
 };
@@ -208,9 +209,6 @@ int __init liberty_init_panel(void)
 	int gpio_lcd_id0, gpio_lcd_id1;
 	uint32_t config;
 	struct panel_data *panel_data = &eid_client_data.panel_conf;
-
-	if (!machine_is_liberty())
-		return -1;
 
 	B(KERN_INFO "%s: enter.\n", __func__);
 
@@ -270,5 +268,3 @@ int __init liberty_init_panel(void)
 			__func__);
 	return 0;
 }
-device_initcall(liberty_init_panel);
-

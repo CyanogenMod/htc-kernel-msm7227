@@ -147,5 +147,6 @@
 
 int __init liberty_init_keypad(void);
 int liberty_init_mmc(unsigned int sys_rev);
+int __init liberty_init_panel(void);
 #endif /* GUARD */
 
