@@ -16,16 +16,14 @@
 #define _LINUX_WIFI_BCM_H_
 
 struct bcm_wifi_platform_data {
+	char *name;
 	int (*set_power)(int val);
 	int (*set_reset)(int val);
 	int (*set_carddetect)(int val);
 	void *(*mem_prealloc)(int section, unsigned long size);
-#ifdef CONFIG_BCM4329_HTC
 	int dot11n_enable;
 	int cscan_enable;
-#else
 	int (*get_mac_addr)(unsigned char *buf);
-#endif
 };
 
 #endif

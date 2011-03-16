@@ -25,3 +25,18 @@ config BCM4329_NVRAM_PATH
 	default "/proc/calibration"
 	---help---
 	  Path to the calibration file.
+
+config BCM4329_ENABLE_CSCAN
+	depends on BCM4329
+	bool "Enable CSCAN"
+	default n
+	---help---
+	  Enable the use of CSCAN methods.
+
+config BCM4329_ALLOW_ARP
+	depends on BCM4329
+	bool "Allow ARP requests"
+	default n
+	---help---
+	  Allow ARP requests to be received by the cpu while in low
+	  power mode.
