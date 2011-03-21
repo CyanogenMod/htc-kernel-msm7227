@@ -150,9 +150,9 @@ void softlockup_tick(void)
 	per_cpu(print_timestamp, this_cpu) = touch_timestamp;
 
 	spin_lock(&print_lock);
-	printk(KERN_ERR "BUG: soft lockup - CPU#%d stuck for %lus! [%s:%d]\n",
+	printk(KERN_ERR "BUG: soft lockup - CPU#%d stuck for %lus! [%s:%d], softlockup_panic:%d\n",
 			this_cpu, now - touch_timestamp,
-			current->comm, task_pid_nr(current));
+			current->comm, task_pid_nr(current), softlockup_panic);
 	print_modules();
 	print_irqtrace_events(current);
 	if (regs)
