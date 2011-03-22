@@ -280,6 +280,7 @@ struct msmsdcc_host {
 	unsigned int	dummy_52_needed;
 	unsigned int	dummy_52_state;
 
+	bool		is_suspended;	/* for suspend hung issue (lost irq then wait forever) */
 };
 
 #endif
