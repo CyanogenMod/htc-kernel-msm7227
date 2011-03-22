@@ -171,6 +171,20 @@ static int flash_light(uint8_t i_fl, uint8_t fl_tim)
 	return 0;
 }
 
+static int enable_low_batt_support(uint8_t value)
+{
+	uint8_t buffer[2];
+	int ret;
+
+	buffer[0] = BATT_LOW_REG;
+	buffer[1] = value;
+	ret = ADP1650_I2C_TxData(buffer, 2);
+	if (ret < 0)
+		return ret;
+
+	return 0;
+}
+
 static int turn_off(void)
 {
 	uint8_t buffer[2];
@@ -200,7 +214,7 @@ int adp1650_flashlight_control(int mode)
 		break;
 
 	case FL_MODE_TORCH:
-		assist_light(CUR_TOR_125MA);
+		assist_light(CUR_TOR_75MA);
 		break;
 
 	case FL_MODE_FLASH:
@@ -208,7 +222,7 @@ int adp1650_flashlight_control(int mode)
 		break;
 
 	case FL_MODE_PRE_FLASH:
-		assist_light(CUR_TOR_200MA);
+		assist_light(CUR_TOR_125MA);
 		break;
 
 	case FL_MODE_TORCH_LEVEL_1:
@@ -321,6 +335,7 @@ static int adp1650_probe(struct i2c_client *client,
 	this_adp1650 = adp1650;
 
 	chip_info(0);
+	enable_low_batt_support(0x81);
 	return 0;
 
 
