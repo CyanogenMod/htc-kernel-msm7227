@@ -67,6 +67,7 @@ struct atmel_ts_data {
 	uint8_t calibration_confirm;
 	uint64_t timestamp;
 	struct atmel_config_data config_setting[2];
+	int8_t noise_config[3];
 	uint8_t status;
 	uint8_t GCAF_sample;
 	uint8_t *GCAF_level;
@@ -585,7 +586,7 @@ static void check_calibration(struct atmel_ts_data*ts)
 			ts->calibration_confirm = 2;
 			printk(KERN_INFO "%s: calibration confirm\n", __func__);
 			i2c_atmel_write_byte_data(ts->client,
-			get_object_address(ts, GEN_ACQUISITIONCONFIG_T8) + T8_CFG_ATCHCALST,
+				get_object_address(ts, GEN_ACQUISITIONCONFIG_T8) + T8_CFG_ATCHCALST,
 				ts->config_setting[ts->status].config_T8[T8_CFG_ATCHCALST]);
 			i2c_atmel_write_byte_data(ts->client,
 				get_object_address(ts, GEN_ACQUISITIONCONFIG_T8) +
@@ -695,9 +696,21 @@ static void msg_process_noisesuppression(struct atmel_ts_data *ts, uint8_t *data
 			ts->GCAF_sample += 24;
 		if (ts->GCAF_sample >= 63) {
 			ts->GCAF_sample = 63;
-			i2c_atmel_write_byte_data(ts->client,
-				get_object_address(ts, PROCG_NOISESUPPRESSION_T22) +
-				T22_CFG_NOISETHR, ts->config_setting[CONNECTED].config[CB_NOISETHR]);
+			if (ts->noise_config[0]) {
+				i2c_atmel_write_byte_data(ts->client,
+					get_object_address(ts, TOUCH_MULTITOUCHSCREEN_T9) +
+					T9_CFG_TCHTHR, ts->noise_config[NC_TCHTHR]);
+				i2c_atmel_write_byte_data(ts->client,
+					get_object_address(ts, TOUCH_MULTITOUCHSCREEN_T9) +
+					T9_CFG_TCHDI, ts->noise_config[NC_TCHDI]);
+				i2c_atmel_write_byte_data(ts->client,
+					get_object_address(ts, PROCG_NOISESUPPRESSION_T22) +
+					T22_CFG_NOISETHR, ts->noise_config[NC_NOISETHR]);
+			} else {
+				i2c_atmel_write_byte_data(ts->client,
+					get_object_address(ts, PROCG_NOISESUPPRESSION_T22) +
+					T22_CFG_NOISETHR, ts->config_setting[CONNECTED].config[CB_NOISETHR]);
+			}
 			i2c_atmel_write_byte_data(ts->client,
 				get_object_address(ts, GEN_ACQUISITIONCONFIG_T8) +
 				T8_CFG_ATCHCALSTHR, 0x1);
@@ -779,7 +792,7 @@ static void atmel_ts_work_func(struct work_struct *work)
 	int ret;
 	struct atmel_ts_data *ts = container_of(work, struct atmel_ts_data, work);
 	uint8_t data[7];
-	uint8_t loop_i, loop_j, report_type, msg_byte_num = 8;
+	uint8_t loop_i, loop_j, report_type, msg_byte_num = 7;
 
 	memset(data, 0x0, sizeof(data));
 
@@ -950,6 +963,7 @@ static int read_object_table(struct atmel_ts_data *ts)
 {
 	uint8_t i, type_count = 0;
 	uint8_t data[6];
+	memset(data, 0x0, sizeof(data));
 
 	ts->object_table = kzalloc(sizeof(struct object_t)*ts->id->num_declared_objects, GFP_KERNEL);
 	if (ts->object_table == NULL) {
@@ -1206,6 +1220,10 @@ static int atmel_ts_probe(struct i2c_client *client,
 		ts->config_setting[NONE].config_T22 = pdata->config_T22;
 		ts->config_setting[NONE].config_T28 = pdata->config_T28;
 
+		if (pdata->noise_config[0])
+			for (loop_i = 0; loop_i < 3; loop_i++)
+				ts->noise_config[loop_i] = pdata->noise_config[loop_i];
+
 		if (pdata->cable_config[0]) {
 			ts->config_setting[NONE].config[CB_TCHTHR] =
 				pdata->config_T9[T9_CFG_TCHTHR];
@@ -1217,7 +1235,7 @@ static int atmel_ts_probe(struct i2c_client *client,
 				pdata->config_T28[T28_CFG_ACTVGCAFDEPTH];
 			for (loop_i = 0; loop_i < 4; loop_i++)
 				ts->config_setting[CONNECTED].config[loop_i] =
-				pdata->cable_config[loop_i];
+					pdata->cable_config[loop_i];
 			ts->GCAF_sample =
 				ts->config_setting[CONNECTED].config[CB_ACTVGCAFDEPTH];
 			if (ts->id->version >= 0x20)
@@ -1532,28 +1550,34 @@ static int atmel_ts_resume(struct i2c_client *client)
 		get_object_address(ts, GEN_POWERCONFIG_T7),
 		ts->config_setting[ts->status].config_T7,
 		get_object_size(ts, GEN_POWERCONFIG_T7));
-	if (ts->config_setting[CONNECTED].config[0] && ts->status &&
-		!check_delta(ts)) {
-		ts->calibration_confirm = 2;
-		i2c_atmel_write_byte_data(ts->client,
-			get_object_address(ts, GEN_ACQUISITIONCONFIG_T8) +
-			T8_CFG_ATCHCALST,
-			ts->config_setting[ts->status].config_T8[T8_CFG_ATCHCALST]);
-		i2c_atmel_write_byte_data(ts->client,
-			get_object_address(ts, GEN_ACQUISITIONCONFIG_T8) +
-			T8_CFG_ATCHCALSTHR,
-			ts->config_setting[ts->status].config_T8[T8_CFG_ATCHCALSTHR]);
+	if (ts->id->version == 0x16) {
+		if (ts->config_setting[CONNECTED].config[0] && ts->status &&
+			!check_delta(ts)) {
+			ts->calibration_confirm = 2;
+			i2c_atmel_write_byte_data(ts->client,
+				get_object_address(ts, GEN_ACQUISITIONCONFIG_T8) +
+				T8_CFG_ATCHCALST,
+				ts->config_setting[ts->status].config_T8[T8_CFG_ATCHCALST]);
+			i2c_atmel_write_byte_data(ts->client,
+				get_object_address(ts, GEN_ACQUISITIONCONFIG_T8) +
+				T8_CFG_ATCHCALSTHR,
+				ts->config_setting[ts->status].config_T8[T8_CFG_ATCHCALSTHR]);
+		} else {
+			ts->calibration_confirm = 0;
+			i2c_atmel_write_byte_data(client,
+				get_object_address(ts, GEN_COMMANDPROCESSOR_T6) +
+				T6_CFG_CALIBRATE, 0x55);
+			i2c_atmel_write_byte_data(client,
+				get_object_address(ts, GEN_ACQUISITIONCONFIG_T8) +
+				T8_CFG_ATCHCALST, 0x0);
+			i2c_atmel_write_byte_data(client,
+				get_object_address(ts, GEN_ACQUISITIONCONFIG_T8) +
+				T8_CFG_ATCHCALSTHR, 0x0);
+		}
 	} else {
-		ts->calibration_confirm = 0;
 		i2c_atmel_write_byte_data(client,
 			get_object_address(ts, GEN_COMMANDPROCESSOR_T6) +
 			T6_CFG_CALIBRATE, 0x55);
-		i2c_atmel_write_byte_data(client,
-			get_object_address(ts, GEN_ACQUISITIONCONFIG_T8) +
-			T8_CFG_ATCHCALST, 0x0);
-		i2c_atmel_write_byte_data(client,
-			get_object_address(ts, GEN_ACQUISITIONCONFIG_T8) +
-			T8_CFG_ATCHCALSTHR, 0x0);
 	}
 	enable_irq(client->irq);
 
