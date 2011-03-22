@@ -366,6 +366,107 @@ config MACH_LIBERTY
 	help
 	  Support for Liberty (PDA phone).
 
+config MACH_VISION
+       depends on ARCH_MSM7X30
+       depends on !MSM_STACKED_MEMORY
+       default n
+       bool "MSM7x30 VISION"
+       help
+         Support for the Qualcomm MSM7x30 Vision board.
+
+config MACH_LEXIKON
+       depends on ARCH_MSM7X30
+       depends on !MSM_STACKED_MEMORY
+       default n
+       bool "MSM7x30 LEXIKON"
+       help
+         Support for the Qualcomm MSM7x30 Lexikon board.
+
+config MACH_SPEEDY
+       depends on ARCH_MSM7X30
+       depends on !MSM_STACKED_MEMORY
+       default n
+       bool "MSM7x30 SPEEDY"
+       help
+         Support for the Qualcomm MSM7x30 Speedy board.
+
+config MACH_MECHA
+       depends on ARCH_MSM7X30
+       depends on !MSM_STACKED_MEMORY
+       default n
+       bool "MSM7x30 MECHA"
+       help
+         Support for the Qualcomm MSM7x30 Mecha board.
+
+config QCT_LTE
+	depends on MACH_MECHA
+        bool "Support QCT LTE function"
+        default n
+        help
+          For QCT LTE function, we need new rpcrouter and smd drivers.
+
+config MACH_GLACIER
+       depends on ARCH_MSM7X30
+       depends on !MSM_STACKED_MEMORY
+       default n
+       bool "MSM7x30 GLACIER"
+       help
+         Support for the Qualcomm MSM7x30 Glacier board.
+
+config MACH_SPADE
+       depends on ARCH_MSM7X30
+       depends on !MSM_STACKED_MEMORY
+       default n
+       bool "MSM7x30 SPADE"
+       help
+         Support for the Qualcomm MSM7x30 Spade board.
+
+config MACH_DYNASTY
+       depends on ARCH_MSM7X30
+       depends on !MSM_STACKED_MEMORY
+       default n
+       bool "MSM7x30 DYNASTY"
+       help
+         Support for the Qualcomm MSM7x30 Dynasty board.
+
+config MACH_FLYER
+       depends on ARCH_MSM7X30
+       depends on !MSM_STACKED_MEMORY
+       default n
+       bool "MSM7x30 FLYER"
+       help
+         Support for the Qualcomm MSM7x30 Flyer board.
+
+config MACH_FLYER_SCREEN_ROTATION
+       depends on MACH_FLYER
+       default y
+       bool "Flyer screen rotation tweak"
+       help
+         Rotate the screen with 90 degree with msm_rotator
+
+config MACH_VIVO
+       depends on ARCH_MSM7X30
+       depends on !MSM_STACKED_MEMORY
+       default n
+       bool "MSM7x30 VIVO"
+       help
+         Support for the Qualcomm MSM7x30 Vivo board.
+
+config MACH_VIVOW
+       depends on ARCH_MSM7X30
+       depends on !MSM_STACKED_MEMORY
+       default n
+       bool "MSM7x30 VIVOW"
+       help
+         Support for the Qualcomm MSM7x30 Vivo_w board.
+
+config PANEL_SELF_REFRESH
+       depends on MACH_SPADE
+       default n
+       bool "Panel Self-refresh"
+       help
+         Support for the board Spade Panel Self-refresh.
+
 config TROUT_BATTCHG
 	depends on MACH_TROUT && POWER_SUPPLY
 	default n
@@ -655,6 +756,14 @@ config MSM_ONCRPCROUTER
 	  Support for the MSM ONCRPC router for communication between
 	  the ARM9 and ARM11
 
+config MSM_ONCRPCROUTER_DEBUG
+	depends on MSM_ONCRPCROUTER
+	default y
+	bool "MSM debug ONCRPC router support"
+	help
+	  Support for debugging the ONCRPC router for communication
+	  between the ARM9 and ARM11
+
 if QCT_LTE
 choice
 	prompt "MSM Shared memory interface version"
@@ -757,13 +866,12 @@ config MSM_SDIO_CTL_DEBUG
 	help
 	  Support for debugging the SDIO Control Driver
 
-config MSM_ONCRPCROUTER_DEBUG
-	depends on MSM_ONCRPCROUTER
+config MSM_SDIO_DIAG
+	bool "SDIO DIAG Driver"
+	depends on MSM_SDIO_AL
 	default y
-	bool "MSM debug ONCRPC router support"
 	help
-	  Support for debugging the ONCRPC router for communication
-	  between the ARM9 and ARM11
+	  Provides a DIAG port interface over SDIO.
 
 config MSM_RPC_LOOPBACK_XPRT
 	depends on MSM_ONCRPCROUTER
@@ -811,6 +919,23 @@ config MSM_RMT_STORAGE_SERVER
 	help
 	  Provide RPC mechanism for remote processors to access storage
 	  device on apps processor.
+
+config MSM_RMT_STORAGE_CLIENT
+	depends on (ARCH_MSM && MSM_ONCRPCROUTER)
+	depends on !MSM_RMT_STORAGE_SERVER
+	default n
+	bool "Remote Storage RPC client"
+	help
+	  Provide RPC mechanism for remote processors to access storage
+	  device on apps processor.
+
+config MSM_RMT_STORAGE_CLIENT_STATS
+	depends on (MSM_RMT_STORAGE_CLIENT && DEBUG_FS)
+	default n
+	bool "Remote storage RPC client performance statistics"
+	help
+	  Collects performance statistics and shows this information
+	  through a debugfs file rmt_storage_stats.
 
 config MSM_DALRPC
 	bool "DAL RPC support"
@@ -1062,6 +1187,13 @@ config SMD_OFFSET_TCXO_STAT
 	help
           TCXO off time is in tick of sleep clock, 1/32768.
 
+config SMD_OFFSET_NEGATE_CLIENT_STAT
+        depends on MSM_SMD
+	hex "SMD offset of negate clinet stat"
+        default 0x0
+        help
+          TCXO shutdown retry conuter and negate tcxoc client counters.
+
 config AXI_SCREEN_POLICY
         depends on ARCH_QSD8X50 || ARCH_MSM7X00A || ARCH_MSM7227 || ARCH_MSM7225
 	depends on HAS_EARLYSUSPEND
@@ -1153,3 +1285,6 @@ config PROC_COMM_TIMEOUT_RESET
 		To reset device while modem hang, and cannot respond proc_comm.
 		Enable this might cause slight overhead on each proc_comm call.
 
+config RPC_SIZE_1024
+    default n
+    bool "set RPC size to 1024"

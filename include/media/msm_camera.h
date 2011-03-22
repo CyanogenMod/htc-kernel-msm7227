@@ -524,6 +524,7 @@ enum brightness_t{
 enum frontcam_t{
 	CAMERA_MIRROR,
 	CAMERA_REVERSE,
+	CAMERA_PORTRAIT_REVERSE, /* for 3rd party */
 };
 
 enum wb_mode{

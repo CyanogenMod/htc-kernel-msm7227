@@ -159,6 +159,10 @@ struct msm_camera_sensor_info {
 	int csi_if;
 	struct msm_camera_csi_params csi_params;
 	int sensor_lc_disable; /* for sensor lens correction support */
+	uint8_t (*preview_skip_frame)(void);
+	int power_down_disable; /* if close power */
+	int full_size_preview; /* if use full-size preview */
+	int cam_select_pin; /* for two sensors */
 };
 struct clk;
 
@@ -259,6 +263,14 @@ int __init rmt_storage_add_ramfs(void);
 
 #if defined(CONFIG_USB_FUNCTION_MSM_HSUSB) || defined(CONFIG_USB_MSM_72K)
 void msm_hsusb_set_vbus_state(int online);
+enum usb_connect_type {
+	CONNECT_TYPE_UNKNOWN = -1,
+	CONNECT_TYPE_NONE = 0,
+	CONNECT_TYPE_USB,
+	CONNECT_TYPE_AC,
+	CONNECT_TYPE_9V_AC,
+};
+
 /* START: add USB connected notify function */
 struct t_usb_status_notifier{
 	struct list_head notifier_link;

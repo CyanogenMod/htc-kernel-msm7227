@@ -595,8 +595,10 @@ static int __init msm_init_gpio(void)
 	int i, j = 0;
 
 	for (i = FIRST_GPIO_IRQ; i < FIRST_GPIO_IRQ + NR_GPIO_IRQS; i++) {
-		if (i - FIRST_GPIO_IRQ > msm_gpio_chips[j].chip.end)
-			j++;
+		if (i - FIRST_GPIO_IRQ > msm_gpio_chips[j].chip.end) {
+			if (j < ARRAY_SIZE(msm_gpio_chips) - 1)
+				j++;
+		}
 		set_irq_chip_data(i, &msm_gpio_chips[j]);
 		set_irq_chip(i, &msm_gpio_irq_chip);
 		set_irq_handler(i, handle_edge_irq);

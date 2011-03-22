@@ -858,7 +858,7 @@ static void unregister_attributes(void)
 	class_destroy(hi->htc_accessory_class);
 }
 
-static int htc_35mm_probe(struct platform_device *pdev)
+static int htc_headset_mgr_probe(struct platform_device *pdev)
 {
 	int ret;
 
@@ -968,13 +968,16 @@ err_create_button_work_queue:
 	switch_dev_unregister(&hi->sdev);
 
 err_switch_dev_register:
+	mutex_destroy(&hi->mutex_lock);
+	wake_lock_destroy(&hi->hs_wake_lock);
+	kfree(hi);
 
-	HS_LOG("H2W: Failed to register driver");
+	HS_LOG("Failed to register %s driver", DRIVER_NAME);
 
 	return ret;
 }
 
-static int htc_35mm_remove(struct platform_device *pdev)
+static int htc_headset_mgr_remove(struct platform_device *pdev)
 {
 	HS_DBG_LOG();
 
@@ -987,13 +990,16 @@ static int htc_35mm_remove(struct platform_device *pdev)
 	input_unregister_device(hi->input);
 	destroy_workqueue(button_wq);
 	switch_dev_unregister(&hi->sdev);
+	mutex_destroy(&hi->mutex_lock);
+	wake_lock_destroy(&hi->hs_wake_lock);
+	kfree(hi);
 
 	return 0;
 }
 
-static struct platform_driver htc_35mm_driver = {
-	.probe		= htc_35mm_probe,
-	.remove		= htc_35mm_remove,
+static struct platform_driver htc_headset_mgr_driver = {
+	.probe		= htc_headset_mgr_probe,
+	.remove		= htc_headset_mgr_remove,
 	.driver		= {
 		.name		= "HTC_HEADSET_MGR",
 		.owner		= THIS_MODULE,
@@ -1001,22 +1007,22 @@ static struct platform_driver htc_35mm_driver = {
 };
 
 
-static int __init htc_35mm_init(void)
+static int __init htc_headset_mgr_init(void)
 {
 	HS_DBG_LOG();
 
-	return platform_driver_register(&htc_35mm_driver);
+	return platform_driver_register(&htc_headset_mgr_driver);
 }
 
-static void __exit htc_35mm_exit(void)
+static void __exit htc_headset_mgr_exit(void)
 {
 	HS_DBG_LOG();
 
-	platform_driver_unregister(&htc_35mm_driver);
+	platform_driver_unregister(&htc_headset_mgr_driver);
 }
 
-module_init(htc_35mm_init);
-module_exit(htc_35mm_exit);
+module_init(htc_headset_mgr_init);
+module_exit(htc_headset_mgr_exit);
 
 MODULE_DESCRIPTION("HTC headset manager driver");
 MODULE_LICENSE("GPL");

@@ -24,14 +24,17 @@
 #define CHECK_INT2		0X67
 #define OVERTEMP_VREG_4060	0XC8
 #define NORMALTEMP_VREG_4200	0XC9
-#define OVER_VOLTAGE		0XCA
+#define CHECK_INT1		0XCA
+#define CHECK_CONTROL           0xCB
 /* information about the system we're running on */
 extern unsigned int system_rev;
 
 enum batt_ctl_t {
 	DISABLE = 0,
 	ENABLE_SLOW_CHG,
-	ENABLE_FAST_CHG
+	ENABLE_FAST_CHG,
+	ENABLE_SUPER_CHG,
+	CHARGER_CHK
 };
 
 /* This order is the same as htc_power_supplies[]
@@ -41,7 +44,8 @@ enum charger_type_t {
 	CHARGER_UNKNOWN = -1,
 	CHARGER_BATTERY = 0,
 	CHARGER_USB,
-	CHARGER_AC
+	CHARGER_AC,
+	CHARGER_SUPER_AC
 };
 
 enum {
@@ -70,9 +74,10 @@ struct battery_info_reply {
 	s32 eval_current;	/* System loading current from ADC */
 };
 
-struct htc_battery_ovp_data {
+struct htc_battery_tps65200_int {
 	int chg_int;
-	struct delayed_work ovp_work;
+	int tps65200_reg;
+	struct delayed_work int_work;
 };
 
 struct htc_battery_platform_data {
@@ -82,10 +87,12 @@ struct htc_battery_platform_data {
 	int gpio_usb_id;
 	int gpio_mchg_en_n;
 	int gpio_iset;
+	int gpio_adp_9v;
 	int guage_driver;
 	int m2a_cable_detect;
 	int charger;
-	struct htc_battery_ovp_data ovp_data;
+	struct htc_battery_tps65200_int int_data;
+	int (*func_is_support_super_charger)(void);
 };
 
 #if CONFIG_HTC_BATTCHG

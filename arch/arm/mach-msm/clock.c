@@ -289,7 +289,7 @@ static unsigned long clk_find_min_rate_locked(struct clk *clk)
 
 static int clk_set_rate_locked(struct clk *clk, unsigned long rate)
 {
-	int ret;
+	int ret = 0;
 
 	if (clk->flags & CLKFLAG_HANDLE) {
 		struct clk_handle *clkh;

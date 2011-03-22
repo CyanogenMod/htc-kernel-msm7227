@@ -115,6 +115,7 @@ struct htc_battery_info {
 	int guage_driver;
 	int m2a_cable_detect;
 	int charger;
+	int gpio_adp_9v;
 };
 
 static struct msm_rpc_endpoint *endpoint;
@@ -365,11 +366,22 @@ int battery_charging_ctrl(enum batt_ctl_t ctl)
 		BATT_LOG("charger ON (SLOW)");
 		result = gpio_direction_output(htc_batt_info.gpio_iset, 0);
 		result = gpio_direction_output(htc_batt_info.gpio_mchg_en_n, 0);
+		if (htc_batt_info.gpio_adp_9v > 0)
+			result = gpio_direction_output(htc_batt_info.gpio_adp_9v, 0);
 		break;
 	case ENABLE_FAST_CHG:
 		BATT_LOG("charger ON (FAST)");
 		result = gpio_direction_output(htc_batt_info.gpio_iset, 1);
 		result = gpio_direction_output(htc_batt_info.gpio_mchg_en_n, 0);
+		if (htc_batt_info.gpio_adp_9v > 0)
+			result = gpio_direction_output(htc_batt_info.gpio_adp_9v, 0);
+		break;
+	case ENABLE_SUPER_CHG:
+		BATT_LOG("charger ON (SUPER)");
+		result = gpio_direction_output(htc_batt_info.gpio_iset, 1);
+		result = gpio_direction_output(htc_batt_info.gpio_mchg_en_n, 0);
+		if (htc_batt_info.gpio_adp_9v > 0)
+			result = gpio_direction_output(htc_batt_info.gpio_adp_9v, 1);
 		break;
 	default:
 		BATT_ERR("%s: Not supported battery ctr called.!", __func__);
@@ -985,13 +997,18 @@ static int htc_battery_get_charging_status(void)
 		break;
 	case CHARGER_USB:
 	case CHARGER_AC:
+	case CHARGER_SUPER_AC:
+#if !defined(CONFIG_BATTERY_DS2746)
 		if ((htc_charge_full) && (htc_batt_info.rep.full_level == 100)) {
 			htc_batt_info.rep.level = 100;
 		}
-
+#endif
 		level = htc_batt_info.rep.level;
 		if (level == 100){
 			htc_charge_full = 1;}
+		else
+			htc_charge_full = 0;
+
 		if (htc_charge_full)
 			ret = POWER_SUPPLY_STATUS_FULL;
 		else if (htc_batt_info.rep.charging_enabled != 0)
@@ -1018,12 +1035,20 @@ static int htc_battery_get_property(struct power_supply *psy,
 		break;
 	case POWER_SUPPLY_PROP_HEALTH:
 		val->intval = POWER_SUPPLY_HEALTH_GOOD;
-		if (machine_is_paradise() && (htc_batt_info.rep.batt_temp >= 500 ||
-			htc_batt_info.rep.batt_temp <= 0))
-			val->intval =  POWER_SUPPLY_HEALTH_OVERHEAT;
-		else if (!machine_is_paradise() && (htc_batt_info.rep.batt_temp >= 480 ||
-			htc_batt_info.rep.batt_temp <= 0))
-			val->intval =  POWER_SUPPLY_HEALTH_OVERHEAT;
+		if (machine_is_paradise()) {
+			if (htc_batt_info.rep.batt_temp >= 500 ||
+				htc_batt_info.rep.batt_temp <= 0)
+				val->intval =  POWER_SUPPLY_HEALTH_OVERHEAT;
+		} else if (machine_is_spade()) {
+			if (htc_batt_info.rep.batt_temp >= 450 ||
+				htc_batt_info.rep.batt_temp <= 0)
+				val->intval =  POWER_SUPPLY_HEALTH_OVERHEAT;
+		} else {
+			if (htc_batt_info.rep.batt_temp >= 480 ||
+				htc_batt_info.rep.batt_temp <= 0)
+				val->intval =  POWER_SUPPLY_HEALTH_OVERHEAT;
+		}
+
 		if (htc_batt_debug_mask & HTC_BATT_DEBUG_USER_QUERY)
 			BATT_LOG("%s: %s: health=%d", __func__, psy->name, val->intval);
 		break;
@@ -1379,53 +1404,86 @@ dont_need_update:
 	return i;
 }
 
-static irqreturn_t over_voltage_detection(int irq, void *data)
+static irqreturn_t tps65200_int_detection(int irq, void *data)
 {
-	struct htc_battery_ovp_data *ip = data;
+	struct htc_battery_tps65200_int *ip = data;
 
 	BATT_LOG("%s: over voltage is detected.", __func__);
 
 	disable_irq_nosync(ip->chg_int);
 
-	schedule_delayed_work(&ip->ovp_work, msecs_to_jiffies(200));
+	ip->tps65200_reg = 0;
+
+	schedule_delayed_work(&ip->int_work, msecs_to_jiffies(200));
 
 	return IRQ_HANDLED;
 }
 
-static void htc_battery_ovp_func(struct work_struct *work)
+static void htc_battery_tps65200_int_func(struct work_struct *work)
 {
-	struct htc_battery_ovp_data *ip;
+	struct htc_battery_tps65200_int *ip;
 	int fault_bit;
-	ip = container_of(work, struct htc_battery_ovp_data, ovp_work.work);
+	ip = container_of(work, struct htc_battery_tps65200_int,
+			int_work.work);
 
-	/* read twice. First read to trigger TPS65200 clear fault bit
-	   on INT1. Second read to make sure that fault bit is cleared and
-	   call off ovp function.*/
-	fault_bit = tps_set_charger_ctrl(OVER_VOLTAGE);
-	BATT_LOG("OVER_VOLTAGE: "
-		"over voltage fault bit value: %d", fault_bit);
-	fault_bit = tps_set_charger_ctrl(OVER_VOLTAGE);
+	switch (ip->tps65200_reg) {
+	case CHECK_INT1:
+		/* read twice. First read to trigger TPS65200 clear fault bit
+		   on INT1. Second read to make sure that fault bit is cleared
+		   and call off ovp function.*/
+		fault_bit = tps_set_charger_ctrl(CHECK_INT1);
+		BATT_LOG("INT1 value: %d", fault_bit);
+		fault_bit = tps_set_charger_ctrl(CHECK_INT1);
 
-	if (fault_bit) {
+		if (fault_bit) {
 #ifdef CONFIG_HTC_BATTCHG_SMEM
-		smem_batt_info->over_vchg = 1;
+			smem_batt_info->over_vchg = 1;
 #else
-		htc_batt_info.rep.over_vchg = 1;
+			htc_batt_info.rep.over_vchg = 1;
 #endif
-		power_supply_changed(&htc_power_supplies[CHARGER_BATTERY]);
-		schedule_delayed_work(&ip->ovp_work,
-				    msecs_to_jiffies(5000));
-		BATT_LOG("OVER_VOLTAGE: "
-			"over voltage fault bit on TPS65200 is raised:%d",
-			fault_bit);
-	} else {
+			power_supply_changed(&htc_power_supplies[CHARGER_BATTERY]);
+			schedule_delayed_work(&ip->int_work,
+					    msecs_to_jiffies(5000));
+			BATT_LOG("OVER_VOLTAGE: "
+				"over voltage fault bit on TPS65200 is raised:"
+				" %d", fault_bit);
+		} else {
 #ifdef CONFIG_HTC_BATTCHG_SMEM
-		smem_batt_info->over_vchg = 0;
+			smem_batt_info->over_vchg = 0;
 #else
-		htc_batt_info.rep.over_vchg = 0;
+			htc_batt_info.rep.over_vchg = 0;
 #endif
-		cancel_delayed_work(&ip->ovp_work);
-		enable_irq(ip->chg_int);
+			cancel_delayed_work(&ip->int_work);
+			enable_irq(ip->chg_int);
+		}
+		break;
+	default:
+		fault_bit = tps_set_charger_ctrl(CHECK_INT2);
+		BATT_LOG("Read TPS65200 INT2 register value: %x", fault_bit);
+		if (fault_bit) {
+			fault_bit = tps_set_charger_ctrl(CHECK_INT2);
+			BATT_LOG("Read TPS65200 INT2 register value: %x"
+				, fault_bit);
+			fault_bit = tps_set_charger_ctrl(CHECK_INT2);
+			BATT_LOG("Read TPS65200 INT2 register value: %x"
+				, fault_bit);
+			fault_bit = tps_set_charger_ctrl(CHECK_CONTROL);
+#ifdef CONFIG_HTC_BATTCHG_SMEM
+			smem_batt_info->reserve4 = 1;
+#endif
+			cancel_delayed_work(&ip->int_work);
+			enable_irq(ip->chg_int);
+		} else {
+			fault_bit = tps_set_charger_ctrl(CHECK_INT1);
+			BATT_LOG("Read TPS65200 INT1 register value: %x"
+				, fault_bit);
+			if (fault_bit) {
+				ip->tps65200_reg = CHECK_INT1;
+				schedule_delayed_work(&ip->int_work,
+						msecs_to_jiffies(200));
+			}
+		}
+		break;
 	}
 }
 
@@ -1572,7 +1630,7 @@ static struct msm_rpc_server battery_server = {
 	.rpc_call = handle_battery_call,
 };
 
-#if defined(CONFIG_BATTERY_DS2784) || defined(CONFIG_BATTERY_DS2746)
+#if defined(CONFIG_BATTERY_DS2784)
 static int ds2784_notifier_func(struct notifier_block *nfb,
 		unsigned long action, void *param)
 {
@@ -1607,6 +1665,34 @@ static struct notifier_block ds2784_notifier = {
 	.notifier_call = ds2784_notifier_func,
 };
 
+#elif defined(CONFIG_BATTERY_DS2746)
+static int ds2746_notifier_func(struct notifier_block *nfb, unsigned long action, void *param)
+{
+	u8 arg = 0;
+
+	if (param)
+		arg = *(u8 *)param;
+
+	BATT_LOG("ds2746_notify: %ld %d", action, arg);
+	switch (action) {
+	case DS2746_CHARGING_CONTROL:
+		if (htc_batt_info.charger == LINEAR_CHARGER)
+			battery_charging_ctrl(arg);
+		break;
+	case DS2746_LEVEL_UPDATE:
+		htc_battery_status_update(arg);
+		break;
+	default:
+		return NOTIFY_BAD;
+	}
+
+	return NOTIFY_OK; /* we did not care other action here */
+}
+
+static struct notifier_block ds2746_notifier = {
+	.notifier_call = ds2746_notifier_func,
+};
+
 #endif
 
 static int htc_battery_probe(struct platform_device *pdev)
@@ -1628,6 +1714,11 @@ static int htc_battery_probe(struct platform_device *pdev)
 		htc_batt_info.gpio_iset = pdata->gpio_iset;
 	}
 
+	if (pdata->func_is_support_super_charger != NULL) {
+		if (pdata->func_is_support_super_charger() == 1)
+			htc_batt_info.gpio_adp_9v = pdata->gpio_adp_9v;
+	}
+
 	if (pdata->guage_driver == GUAGE_MODEM ||
 		pdata->m2a_cable_detect)
 		msm_rpc_create_server(&battery_server);
@@ -1636,20 +1727,20 @@ static int htc_battery_probe(struct platform_device *pdev)
 		ds2784_register_notifier(&ds2784_notifier);
 #elif defined(CONFIG_BATTERY_DS2746)
 	if (pdata->guage_driver == GUAGE_DS2746)
-		ds2746_register_notifier(&ds2784_notifier);
+		ds2746_register_notifier(&ds2746_notifier);
 #endif
 
 	if (system_rev >= 1) {
-		if (pdata->ovp_data.chg_int) {
+		if (pdata->int_data.chg_int) {
 			BATT_LOG("init over voltage interrupt detection.");
-			INIT_DELAYED_WORK(&pdata->ovp_data.ovp_work,
-					htc_battery_ovp_func);
+			INIT_DELAYED_WORK(&pdata->int_data.int_work,
+					htc_battery_tps65200_int_func);
 
-			rc = request_irq(pdata->ovp_data.chg_int,
-					over_voltage_detection,
+			rc = request_irq(pdata->int_data.chg_int,
+					tps65200_int_detection,
 					IRQF_TRIGGER_LOW,
 					"over_voltage_interrupt",
-					&pdata->ovp_data);
+					&pdata->int_data);
 
 			if (rc) {
 				BATT_LOG("request irq failed");

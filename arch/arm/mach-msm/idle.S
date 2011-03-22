@@ -39,7 +39,6 @@ ENTRY(msm_arch_idle)
 #if defined(CONFIG_MSM_FIQ_SUPPORT)
 	cpsid	f
 #endif
-	mcr     p15, 0, r0, c7, c10, 0   /* flush the cache    */
 	mrc     p15, 0, r1, c1, c0, 0    /* read current CR    */ 
 	bic     r0, r1, #(1 << 2)        /* clear dcache bit   */
 	bic     r0, r0, #(1 << 12)       /* clear icache bit   */
