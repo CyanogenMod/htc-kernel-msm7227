@@ -149,6 +149,7 @@ struct msm_endpoint {
 };
 
 static void usb_do_work(struct work_struct *w);
+static void do_usb_hub_disable(struct work_struct *w);
 static void check_charger(struct work_struct *w);
 #ifdef CONFIG_USB_ACCESSORY_DETECT
 static void accessory_detect_work(struct work_struct *w);
@@ -167,13 +168,6 @@ extern void android_set_serialno(char *serialno);
 #define USB_FLAG_VBUS_ONLINE    0x0002
 #define USB_FLAG_VBUS_OFFLINE   0x0004
 #define USB_FLAG_RESET          0x0008
-
-enum usb_connect_type {
-	CONNECT_TYPE_NONE = 0,
-	CONNECT_TYPE_USB,
-	CONNECT_TYPE_AC,
-	CONNECT_TYPE_UNKNOWN,
-};
 
 struct usb_info {
 	/* lock for register/queue/device state changes */
@@ -227,6 +221,7 @@ struct usb_info {
 	struct work_struct detect_work;
 	struct work_struct dock_work;
 	struct work_struct notifier_work;
+	struct work_struct usb_hub_work;
 	unsigned phy_status;
 	unsigned phy_fail_count;
 
@@ -260,6 +255,8 @@ struct usb_info {
 	void (*config_usb_id_gpios)(bool output_enable);
 	/* 0: none, 1: carkit, 2: usb headset */
 	u8 accessory_type;
+	struct timer_list	ac_detect_timer;
+	int			ac_detect_count;
 };
 
 static const struct usb_ep_ops msm72k_ep_ops;
@@ -534,6 +531,8 @@ static void usb_ept_start(struct msm_endpoint *ept)
 {
 	struct usb_info *ui = ept->ui;
 	struct msm_request *req = ept->req;
+	int i, cnt;
+	unsigned n = 1 << ept->bit;
 
 	BUG_ON(req->live);
 
@@ -541,14 +540,36 @@ static void usb_ept_start(struct msm_endpoint *ept)
 	ept->head->next = req->item_dma;
 	ept->head->info = 0;
 
-	/* start the endpoint */
-	writel(1 << ept->bit, USB_ENDPTPRIME);
+	/* during high throughput testing it is observed that
+	 * ept stat bit is not set even thoguh all the data
+	 * structures are updated properly and ept prime bit
+	 * is set. To workaround the issue, try to check if
+	 * ept stat bit otherwise try to re-prime the ept
+	 */
+	for (i = 0; i < 5; i++) {
+		writel(n, USB_ENDPTPRIME);
+		for (cnt = 0; cnt < 3000; cnt++) {
+			if (!(readl(USB_ENDPTPRIME) & n) &&
+					(readl(USB_ENDPTSTAT) & n))
+				goto DONE;
+			udelay(1);
+		}
+	}
 
+	if (!(readl(USB_ENDPTSTAT) & n)) {
+		pr_err("Unable to prime the ept%d%s\n",
+				ept->num,
+				ept->flags & EPT_FLAG_IN ? "in" : "out");
+		return;
+	}
+
+DONE:
 	/* mark this chain of requests as live */
 	while (req) {
 		req->live = 1;
 		req = req->next;
 	}
+
 }
 
 int usb_ept_queue_xfer(struct msm_endpoint *ept, struct usb_request *_req)
@@ -772,7 +793,6 @@ static void handle_setup(struct usb_info *ui)
 			{
 				u16 temp = 0;
 
-				temp = 1 << USB_DEVICE_SELF_POWERED;
 				temp |= (ui->remote_wakeup <<
 						USB_DEVICE_REMOTE_WAKEUP);
 				memcpy(req->buf, &temp, 2);
@@ -1077,6 +1097,8 @@ static irqreturn_t usb_interrupt(int irq, void *data)
 		if (ui->connect_type != CONNECT_TYPE_USB) {
 			ui->connect_type = CONNECT_TYPE_USB;
 			queue_work(ui->usb_wq, &ui->notifier_work);
+			ui->ac_detect_count = 0;
+			del_timer_sync(&ui->ac_detect_timer);
 		}
 	}
 
@@ -1242,6 +1264,27 @@ static ssize_t show_USB_ID_status(struct device *dev,
 static DEVICE_ATTR(USB_ID_status, 0444,
 	show_USB_ID_status, NULL);
 
+static ssize_t show_usb_car_kit_enable(struct device *dev,
+			struct device_attribute *attr,
+			char *buf)
+{
+	struct usb_info *ui = the_usb_info;
+	int value = 1;
+	unsigned length;
+
+	if (!ui)
+		return 0;
+	if (ui->accessory_detect == 0) {
+		value = 0;
+	}
+	printk(KERN_INFO "usb: USB_car_kit_enable %d\n", ui->accessory_detect);
+	length = sprintf(buf, "%d", value);
+	return length;
+}
+
+static DEVICE_ATTR(usb_car_kit_enable, 0444,
+	show_usb_car_kit_enable, NULL);/*for kar kit AP check if car kit enable*/
+
 static ssize_t show_usb_phy_setting(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
@@ -1378,6 +1421,9 @@ static void usb_prepare(struct usb_info *ui)
 	INIT_WORK(&ui->notifier_work, send_usb_connect_notify);
 	INIT_DELAYED_WORK(&ui->chg_work, check_charger);
 
+	if (ui->usb_hub_enable)
+		INIT_WORK(&ui->usb_hub_work, do_usb_hub_disable);
+
 	ret = device_create_file(&ui->pdev->dev,
 		&dev_attr_usb_cable_connect);
 	if (ret != 0)
@@ -1409,6 +1455,10 @@ static void usb_prepare(struct usb_info *ui)
 	if (ret != 0)
 		printk(KERN_WARNING "dev_attr_usb_mfg_carkit_enable failed\n");
 #endif
+	ret = device_create_file(&ui->pdev->dev,
+		&dev_attr_usb_car_kit_enable);/*for kar kit AP check if car kit enable*/
+	if (ret != 0)
+		printk(KERN_WARNING "dev_attr_usb_car_kit_enable failed\n");
 
 }
 
@@ -1614,8 +1664,10 @@ static void usb_do_work_check_vbus(struct usb_info *ui)
 static void usb_lpm_enter(struct usb_info *ui)
 {
 	unsigned long iflags;
+
 	if (ui->in_lpm)
 		return;
+
 	printk(KERN_INFO "usb: lpm enter\n");
 	spin_lock_irqsave(&ui->lock, iflags);
 	usb_suspend_phy(ui);
@@ -1639,9 +1691,13 @@ static void usb_lpm_enter(struct usb_info *ui)
 
 static void usb_lpm_exit(struct usb_info *ui)
 {
+	unsigned long iflags;
+
 	if (!ui->in_lpm)
 		return;
+
 	printk(KERN_INFO "usb: lpm exit\n");
+	spin_lock_irqsave(&ui->lock, iflags);
 	clk_set_rate(ui->ebi1clk, acpuclk_get_max_axi_rate());
 	udelay(10);
 	if (ui->coreclk)
@@ -1652,6 +1708,7 @@ static void usb_lpm_exit(struct usb_info *ui)
 		clk_enable(ui->otgclk);
 	usb_wakeup_phy(ui);
 	ui->in_lpm = 0;
+	spin_unlock_irqrestore(&ui->lock, iflags);
 
 	if (board_mfg_mode() == 1) {/*for MFG adb unstable in FROYO ROM*/
 		printk(KERN_INFO "usb: idle_wake_lock and perf lock\n");
@@ -1659,6 +1716,14 @@ static void usb_lpm_exit(struct usb_info *ui)
 		if (!is_perf_lock_active(&usb_perf_lock))
 			perf_lock(&usb_perf_lock);
 	}
+}
+
+static void do_usb_hub_disable(struct work_struct *w)
+{
+	struct usb_info *ui = container_of(w, struct usb_info, usb_hub_work);
+
+	if (ui->usb_hub_enable)
+		ui->usb_hub_enable(false);
 }
 
 #ifdef CONFIG_DOCK_ACCESSORY_DETECT
@@ -1889,6 +1954,47 @@ err:
 #endif
 
 #define DELAY_FOR_CHECK_CHG msecs_to_jiffies(300)
+
+static void charger_detect_by_uart(struct usb_info *ui)
+{
+	int is_china_ac;
+
+	if (!vbus)
+		return;
+
+	/*UART*/
+	if (ui->usb_uart_switch)
+		ui->usb_uart_switch(1);
+
+	is_china_ac = ui->china_ac_detect();
+
+	if (is_china_ac) {
+		ui->connect_type = CONNECT_TYPE_AC;
+		queue_work(ui->usb_wq, &ui->notifier_work);
+		usb_lpm_enter(ui);
+		printk(KERN_INFO "usb: AC charger\n");
+	} else {
+		ui->connect_type = CONNECT_TYPE_UNKNOWN;
+		queue_delayed_work(ui->usb_wq, &ui->chg_work,
+			DELAY_FOR_CHECK_CHG);
+		printk(KERN_INFO "usb: not AC charger\n");
+
+		/*set uart to gpo*/
+		if (ui->serial_debug_gpios)
+			ui->serial_debug_gpios(0);
+		/*turn on USB HUB*/
+		if (ui->usb_hub_enable)
+			ui->usb_hub_enable(1);
+
+		/*USB*/
+		if (ui->usb_uart_switch)
+			ui->usb_uart_switch(0);
+
+		usb_lpm_exit(ui);
+		usb_reset(ui);
+	}
+}
+
 static void charger_detect(struct usb_info *ui)
 {
 	if (!vbus)
@@ -1900,9 +2006,15 @@ static void charger_detect(struct usb_info *ui)
 		ui->connect_type = CONNECT_TYPE_UNKNOWN;
 		queue_delayed_work(ui->usb_wq, &ui->chg_work,
 			DELAY_FOR_CHECK_CHG);
+		mod_timer(&ui->ac_detect_timer, jiffies + (3 * HZ));
 	} else {
-		printk(KERN_INFO "usb: AC charger\n");
-		ui->connect_type = CONNECT_TYPE_AC;
+		if (gpio_get_value(ui->usb_id_pin_gpio) == 0) {
+			printk(KERN_INFO "usb: 9V AC charger\n");
+			ui->connect_type = CONNECT_TYPE_9V_AC;
+		} else {
+			printk(KERN_INFO "usb: AC charger\n");
+			ui->connect_type = CONNECT_TYPE_AC;
+		}
 		queue_work(ui->usb_wq, &ui->notifier_work);
 		writel(0x00080000, USB_USBCMD);
 		msleep(10);
@@ -1946,11 +2058,13 @@ static void usb_do_work(struct work_struct *w)
 		case USB_STATE_IDLE:
 			if (flags & USB_FLAG_START) {
 				pr_info("hsusb: IDLE -> ONLINE\n");
+
 				usb_lpm_exit(ui);
 				usb_reset(ui);
-
-			if (!ui->china_ac_detect)
-				charger_detect(ui);
+				if (ui->china_ac_detect)
+					charger_detect_by_uart(ui);
+				else
+					charger_detect(ui);
 
 				ui->state = USB_STATE_ONLINE;
 #ifdef CONFIG_USB_ACCESSORY_DETECT
@@ -1996,6 +2110,8 @@ static void usb_do_work(struct work_struct *w)
 
 				/* power down phy, clock down usb */
 				usb_lpm_enter(ui);
+				ui->ac_detect_count = 0;
+				del_timer_sync(&ui->ac_detect_timer);
 
 				ui->state = USB_STATE_OFFLINE;
 				usb_do_work_check_vbus(ui);
@@ -2022,11 +2138,14 @@ static void usb_do_work(struct work_struct *w)
 			 */
 			if ((flags & USB_FLAG_VBUS_ONLINE) && _vbus) {
 				pr_info("hsusb: OFFLINE -> ONLINE\n");
-				usb_lpm_exit(ui);
-				usb_reset(ui);
 
-			if (!ui->china_ac_detect)
-				charger_detect(ui);
+				if (ui->china_ac_detect)
+					charger_detect_by_uart(ui);
+				else {
+					usb_lpm_exit(ui);
+					usb_reset(ui);
+					charger_detect(ui);
+				}
 
 				ui->state = USB_STATE_ONLINE;
 				usb_do_work_check_vbus(ui);
@@ -2044,7 +2163,6 @@ void msm_hsusb_set_vbus_state(int online)
 {
 	unsigned long flags = 0;
 	struct usb_info *ui = the_usb_info;
-	int is_china_ac;
 	printk(KERN_INFO "%s: %d\n", __func__, online);
 
 	if (ui)
@@ -2059,38 +2177,13 @@ void msm_hsusb_set_vbus_state(int online)
 			}
 
 			if (online) {
-				if (ui->china_ac_detect) {
-					is_china_ac = ui->china_ac_detect();
-
-					if (is_china_ac) {
-						ui->connect_type = CONNECT_TYPE_AC;
-						queue_work(ui->usb_wq, &ui->notifier_work);
-						usb_lpm_enter(ui);
-						printk(KERN_INFO "usb: AC charger\n");
-					} else {
-						ui->connect_type = CONNECT_TYPE_UNKNOWN;
-						queue_delayed_work(ui->usb_wq, &ui->chg_work,
-							DELAY_FOR_CHECK_CHG);
-						printk(KERN_INFO "usb: not AC charger\n");
-					}
-				}
-
-
-				/*set uart to gpo*/
-				if (ui->serial_debug_gpios)
-					ui->serial_debug_gpios(0);
-				/*turn on USB HUB*/
-				if (ui->usb_hub_enable) {
-					ui->usb_hub_enable(1);
-				}
-
 				/*USB*/
 				if (ui->usb_uart_switch)
 					ui->usb_uart_switch(0);
 			} else {
 				/*turn off USB HUB*/
 				if (ui->usb_hub_enable)
-					ui->usb_hub_enable(0);
+					queue_work(ui->usb_wq, &ui->usb_hub_work);
 
 				/*UART*/
 				if (ui->usb_uart_switch)
@@ -2499,6 +2592,47 @@ static ssize_t usb_remote_wakeup(struct device *dev,
 }
 static DEVICE_ATTR(wakeup, S_IWUSR, 0, usb_remote_wakeup);
 
+static void ac_detect_expired(unsigned long _data)
+{
+	struct usb_info *ui = (struct usb_info *) _data;
+	u32 delay = 0;
+
+	printk(KERN_INFO "%s: count = %d, connect_type = 0x%04x\n", __func__,
+			ui->ac_detect_count, ui->connect_type);
+
+	if (ui->connect_type == CONNECT_TYPE_USB || ui->ac_detect_count >= 3)
+		return;
+
+	/* detect shorted D+/D-, indicating AC power */
+	if ((readl(USB_PORTSC) & PORTSC_LS) != PORTSC_LS) {
+		ui->ac_detect_count++;
+		/* detect delay: 3 sec, 5 sec, 10 sec */
+		if (ui->ac_detect_count == 1)
+			delay = 5 * HZ;
+		else if (ui->ac_detect_count == 2)
+			delay = 10 * HZ;
+
+		mod_timer(&ui->ac_detect_timer, jiffies + delay);
+	} else {
+		if (ui->usb_id_pin_gpio) {
+			if (gpio_get_value(ui->usb_id_pin_gpio) == 0) {
+				printk(KERN_INFO "usb: 9V AC charger\n");
+				ui->connect_type = CONNECT_TYPE_9V_AC;
+			} else {
+				printk(KERN_INFO "usb: AC charger\n");
+				ui->connect_type = CONNECT_TYPE_AC;
+			}
+		} else {
+			printk(KERN_INFO "usb: AC charger\n");
+			ui->connect_type = CONNECT_TYPE_AC;
+		}
+		queue_work(ui->usb_wq, &ui->notifier_work);
+		writel(0x00080000, USB_USBCMD);
+		mdelay(10);
+		usb_lpm_enter(ui);
+	}
+}
+
 static int msm72k_probe(struct platform_device *pdev)
 {
 	struct resource *res;
@@ -2596,12 +2730,12 @@ static int msm72k_probe(struct platform_device *pdev)
 		clk_enable(ui->otgclk);
 	writel(0, USB_USBINTR);
 	writel(0, USB_OTGSC);
-	if (ui->coreclk)
-		clk_disable(ui->coreclk);
 	if (ui->otgclk)
 		clk_disable(ui->otgclk);
 	clk_disable(ui->pclk);
 	clk_disable(ui->clk);
+	if (ui->coreclk)
+		clk_disable(ui->coreclk);
 
 	ui->in_lpm = 1;
 	ret = request_irq(irq, usb_interrupt, 0, pdev->name, ui);
@@ -2633,6 +2767,10 @@ static int msm72k_probe(struct platform_device *pdev)
 		use_mfg_serialno = 0;
 	strncpy(mfg_df_serialno, "000000000000", strlen("000000000000"));
 
+	ui->ac_detect_count = 0;
+	ui->ac_detect_timer.data = (unsigned long) ui;
+	ui->ac_detect_timer.function = ac_detect_expired;
+	init_timer(&ui->ac_detect_timer);
 	return 0;
 }
 
