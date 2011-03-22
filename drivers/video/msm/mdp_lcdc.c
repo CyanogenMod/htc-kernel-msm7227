@@ -33,6 +33,10 @@
 #ifdef CONFIG_MSM_MDP40
 #include "mdp4.h"
 #endif
+#ifdef CONFIG_PANEL_SELF_REFRESH
+#include <linux/kthread.h>
+#include <linux/spi/spi.h>
+#endif
 
 #if 0
 #define D(fmt, args...) printk(KERN_INFO "Dispaly: " fmt, ##args)
@@ -43,32 +47,7 @@
 #if defined(CONFIG_ARCH_MSM7227)
 #define LCDC_MUX_CTL (MSM_TGPIO1_BASE + 0x278)
 #endif
-struct mdp_lcdc_info {
-	struct mdp_info			*mdp;
-	struct clk			*mdp_clk;
-	struct clk			*pclk;
-	struct clk			*pad_pclk;
-	struct msm_panel_data		fb_panel_data;
-	struct platform_device		fb_pdev;
-	struct msm_lcdc_platform_data	*pdata;
-	uint32_t fb_start;
 
-	struct msmfb_callback		frame_start_cb;
-	wait_queue_head_t		vsync_waitq;
-	int				got_vsync;
-	unsigned			color_format;
-	struct {
-		uint32_t	clk_rate;
-		uint32_t	hsync_ctl;
-		uint32_t	vsync_period;
-		uint32_t	vsync_pulse_width;
-		uint32_t	display_hctl;
-		uint32_t	display_vstart;
-		uint32_t	display_vend;
-		uint32_t	hsync_skew;
-		uint32_t	polarity;
-	} parms;
-};
 
 static struct mdp_device *mdp_dev;
 
@@ -76,7 +55,108 @@ static struct mdp_device *mdp_dev;
 static struct mdp4_overlay_pipe *lcdc_pipe;
 #endif
 
-#define panel_to_lcdc(p) container_of((p), struct mdp_lcdc_info, fb_panel_data)
+#ifdef CONFIG_PANEL_SELF_REFRESH
+#if 0
+#define ICM_DBG(s...) printk("[icm]" s)
+#else
+#define ICM_DBG(s...) do {} while (0)
+#endif
+
+/* set the timeout to 333 milliseconds */
+#define PANEL_ENTER_IDLE_TIMEOUT HZ/5
+/* Afetr setting ICM=1, we need to keep sending the RGB signal more than 2-frame */
+#define PANEL_IDLE_STABLE_TIMEOUT 48
+
+int qspi_send_16bit(unsigned char id, unsigned data);
+static struct task_struct *th_display;
+struct panel_icm_info *panel_icm;
+DECLARE_WAIT_QUEUE_HEAD(panel_update_wait_queue);
+#endif
+
+#ifdef CONFIG_PANEL_SELF_REFRESH
+static int icm_check_panel_update(void)
+{
+	int ret;
+	unsigned long irq_flags = 0;
+
+	spin_lock_irqsave(&panel_icm->lock, irq_flags);
+	ret = panel_icm->panel_update;
+	spin_unlock_irqrestore(&panel_icm->lock, irq_flags);
+	return ret;
+}
+
+static int panel_icm_thread(void *data)
+{
+	struct mdp_lcdc_info *lcdc;
+	int rc;
+	unsigned long irq_flags = 0;
+
+	lcdc = data;
+	while (1) {
+		rc = wait_event_timeout(panel_update_wait_queue, icm_check_panel_update() == 1, PANEL_ENTER_IDLE_TIMEOUT);
+		ICM_DBG("ICM Thread:wake up rc=%d \n", rc);
+		mutex_lock(&panel_icm->icm_lock);
+		if (rc == 0 && icm_check_panel_update() != 1) {/* wait_timeout */
+			ICM_DBG("EnterICM: icm_mode=%d icm_doable=%d \n", panel_icm->icm_mode, panel_icm->icm_doable);
+			if (panel_icm->icm_mode == false && panel_icm->icm_doable == true) {
+
+				qspi_send_16bit(0x1, 0x3B);
+				qspi_send_16bit(0x0, 0x00);
+				qspi_send_16bit(0x2, 0x13);
+				panel_icm->icm_mode = true;
+				msleep(PANEL_IDLE_STABLE_TIMEOUT);
+
+				mdp_writel(lcdc->mdp, 0, MDP_LCDC_EN);
+				clk_disable(lcdc->pad_pclk);
+				clk_disable(lcdc->pclk);
+				clk_disable(lcdc->mdp_clk);
+				pr_info("EnterICM: enter ICM MODE done!!!\n");
+			}
+		} else {/* get update event, no timeout */
+			ICM_DBG("Leave ICM: icm_mode=%d icm_doable=%d \n", panel_icm->icm_mode, panel_icm->icm_doable);
+			if (panel_icm->icm_mode == true && panel_icm->icm_doable == true) {
+				clk_enable(lcdc->mdp_clk);
+				clk_enable(lcdc->pclk);
+				clk_enable(lcdc->pad_pclk);
+				mdp_writel(lcdc->mdp, 1, MDP_LCDC_EN);
+
+				qspi_send_16bit(0x1, 0x3B);
+				qspi_send_16bit(0x0, 0x00);
+				qspi_send_16bit(0x2, 0x03);
+				panel_icm->icm_mode = false;
+				pr_info("LeaveICM: leave ICM MODE done !!!\n");
+			}
+			spin_lock_irqsave(&panel_icm->lock, irq_flags);
+			panel_icm->panel_update = 0;
+			spin_unlock_irqrestore(&panel_icm->lock, irq_flags);
+		}
+		mutex_unlock(&panel_icm->icm_lock);
+	} /* end while */
+	return 0;
+}
+
+static int display_selfrefresh_init(struct mdp_lcdc_info *lcdc)
+{
+	int ret = 0;
+
+	/* init panel_icm_info */
+	panel_icm = kzalloc(sizeof(struct panel_icm_info), GFP_KERNEL);
+	if (!panel_icm)
+		return -ENOMEM;
+	panel_icm->icm_doable = 1;
+	mutex_init(&panel_icm->icm_lock);
+	th_display = kthread_run(panel_icm_thread, lcdc, "panel-enterIdle");
+	if (IS_ERR(th_display)) {
+		ret = PTR_ERR(th_display);
+		pr_err("%s: panel_icm_thread  create fail:%d!!!\n", __func__, ret);
+		goto	error_create_thread;
+	}
+	return ret;
+error_create_thread:
+	kfree(panel_icm);
+	return ret;
+}
+#endif
 
 static int lcdc_unblank(struct msm_panel_data *fb_panel)
 {
@@ -128,10 +208,22 @@ static int lcdc_suspend(struct msm_panel_data *fb_panel)
 	writel(0x0, LCDC_MUX_CTL);
 	D("suspend_lcdc_mux_ctl = %x\n", readl(LCDC_MUX_CTL));
 #endif
+#ifdef CONFIG_PANEL_SELF_REFRESH
+	if (lcdc->mdp->mdp_dev.overrides & MSM_MDP_RGB_PANEL_SELE_REFRESH) {
+	mutex_lock(&panel_icm->icm_lock);
+	panel_icm->icm_doable = false;
+	pr_info("[ICM %s]: icm mode=%d\n", __func__, panel_icm->icm_mode);
+	if (panel_icm->icm_mode == false) {
+#endif
 	mdp_writel(lcdc->mdp, 0, MDP_LCDC_EN);
 	clk_disable(lcdc->pad_pclk);
 	clk_disable(lcdc->pclk);
 	clk_disable(lcdc->mdp_clk);
+#ifdef CONFIG_PANEL_SELF_REFRESH
+	}
+	mutex_unlock(&panel_icm->icm_lock);
+       }
+#endif
 	if (panel_ops->uninit)
 		panel_ops->uninit(panel_ops);
 
@@ -159,6 +251,13 @@ static int lcdc_resume(struct msm_panel_data *fb_panel)
 #endif
 
 	mdp_writel(lcdc->mdp, 1, MDP_LCDC_EN);
+#ifdef CONFIG_PANEL_SELF_REFRESH
+	if (lcdc->mdp->mdp_dev.overrides & MSM_MDP_RGB_PANEL_SELE_REFRESH) {
+		mutex_lock(&panel_icm->icm_lock);
+		panel_icm->icm_doable = true;
+		mutex_unlock(&panel_icm->icm_lock);
+	}
+#endif
 
 	return 0;
 }
@@ -167,14 +266,20 @@ static int lcdc_hw_init(struct mdp_lcdc_info *lcdc)
 {
 	struct msm_panel_data *fb_panel = &lcdc->fb_panel_data;
 	uint32_t dma_cfg;
+#if defined(CONFIG_MACH_FLYER_SCREEN_ROTATION)
+	struct msm_fb_data *fb_data = fb_panel->fb_data;
+#endif
 
 	clk_enable(lcdc->mdp_clk);
 	clk_enable(lcdc->pclk);
 	clk_enable(lcdc->pad_pclk);
 
+#ifdef CONFIG_MSM_MDP40
+	mdp_writel(lcdc->mdp, 0, MDP_LCDC_EN);
+	mdelay(10);
+#endif
 	clk_set_rate(lcdc->pclk, lcdc->parms.clk_rate);
 	clk_set_rate(lcdc->pad_pclk, lcdc->parms.clk_rate);
-
 	/* write the lcdc params */
 	mdp_writel(lcdc->mdp, lcdc->parms.hsync_ctl, MDP_LCDC_HSYNC_CTL);
 	mdp_writel(lcdc->mdp, lcdc->parms.vsync_period, MDP_LCDC_VSYNC_PERIOD);
@@ -192,12 +297,28 @@ static int lcdc_hw_init(struct mdp_lcdc_info *lcdc)
 	mdp_writel(lcdc->mdp, 0, MDP_LCDC_ACTIVE_V_START);
 	mdp_writel(lcdc->mdp, 0, MDP_LCDC_ACTIVE_V_END);
 	mdp_writel(lcdc->mdp, lcdc->parms.polarity, MDP_LCDC_CTL_POLARITY);
-
 	/* config the dma_p block that drives the lcdc data */
+#if !defined(CONFIG_MACH_FLYER_SCREEN_ROTATION)
 	mdp_writel(lcdc->mdp, lcdc->fb_start, MDP_DMA_P_IBUF_ADDR);
 	mdp_writel(lcdc->mdp, (((fb_panel->fb_data->yres & 0x7ff) << 16) |
 			       (fb_panel->fb_data->xres & 0x7ff)),
 		   MDP_DMA_P_SIZE);
+#else
+	if (!(lcdc->mdp->mdp_dev.overrides & MSM_MDP_ROTATION_270)) {
+		mdp_writel(lcdc->mdp, lcdc->fb_start, MDP_DMA_P_IBUF_ADDR);
+		mdp_writel(lcdc->mdp,
+			(((fb_panel->fb_data->yres & 0x7ff) << 16) |
+			(fb_panel->fb_data->xres & 0x7ff)),
+		   	MDP_DMA_P_SIZE);
+	} else {
+		mdp_writel(lcdc->mdp, fb_data->transformation_data.paddr,
+				MDP_DMA_P_IBUF_ADDR);
+		mdp_writel(lcdc->mdp,
+			(((fb_data->transformation_data.yres & 0x7ff) << 16) |
+			(fb_data->transformation_data.xres & 0x7ff)),
+			MDP_DMA_P_SIZE);
+	}
+#endif
 
 	mdp_writel(lcdc->mdp, 0, MDP_DMA_P_OUT_XY);
 
@@ -278,6 +399,12 @@ static void lcdc_overlay_start(void *priv, uint32_t addr, uint32_t stride,
 
 	struct mdp4_overlay_pipe *pipe;
 	pipe = lcdc_pipe;
+#if defined(CONFIG_MACH_FLYER_SCREEN_ROTATION)
+	/* FIXME: retrival of dimensional data instead of magic number */
+	if (mdp->mdp_dev.overrides & MSM_MDP_ROTATION_270) {
+		addr += 1024 * 576 * 4 * 2;
+	}
+#endif
 	pipe->srcp0_addr = addr;
 
 	if (mdp->dma_config_dirty)
@@ -290,13 +417,19 @@ static void lcdc_overlay_start(void *priv, uint32_t addr, uint32_t stride,
 			pipe->srcp0_ystride = pipe->src_width * 4;
 		}
 		mdp4_overlay_format2pipe(pipe);
+		mdp_writel(pipe->mdp, 0, MDP_LCDC_EN);
+		mdelay(30);
 		mdp4_overlay_dmap_xy(pipe);
 		mdp4_overlay_dmap_cfg(pipe, 1);
 		mdp4_overlayproc_cfg(pipe);
+		mdp4_overlay_rgb_setup(pipe);
+		mdp4_overlay_reg_flush(pipe, 1); /* rgb1 and mixer0 */
+		mdp_writel(pipe->mdp, 1, MDP_LCDC_EN);
 		mdp->dma_config_dirty = false;
+	} else {
+		mdp4_overlay_rgb_setup(pipe);
+		mdp4_overlay_reg_flush(pipe, 1); /* rgb1 and mixer0 */
 	}
-	mdp4_overlay_rgb_setup(pipe);
-	mdp4_overlay_reg_flush(pipe, 1); /* rgb1 and mixer0 */
 
 }
 #else
@@ -329,6 +462,7 @@ static void precompute_timing_parms(struct mdp_lcdc_info *lcdc)
 	unsigned int display_vstart;
 	unsigned int display_vend;
 
+#if !defined(CONFIG_MACH_FLYER_SCREEN_ROTATION)
 	hsync_period = (timing->hsync_pulse_width + timing->hsync_back_porch +
 			fb_data->xres + timing->hsync_front_porch);
 	hsync_start_x = (timing->hsync_pulse_width + timing->hsync_back_porch);
@@ -345,6 +479,46 @@ static void precompute_timing_parms(struct mdp_lcdc_info *lcdc)
 	display_vend = (timing->vsync_pulse_width + timing->vsync_back_porch +
 			 fb_data->yres) * hsync_period;
 	display_vend += timing->hsync_skew - 1;
+#else
+	if (!(lcdc->mdp->mdp_dev.overrides & MSM_MDP_ROTATION_270)) {
+		hsync_period = (timing->hsync_pulse_width + timing->hsync_back_porch +
+				fb_data->xres + timing->hsync_front_porch);
+		hsync_start_x = (timing->hsync_pulse_width + timing->hsync_back_porch);
+		hsync_end_x = hsync_start_x + fb_data->xres - 1;
+
+		vsync_period = (timing->vsync_pulse_width + timing->vsync_back_porch +
+				fb_data->yres + timing->vsync_front_porch);
+		vsync_period *= hsync_period;
+
+		display_vstart = timing->vsync_pulse_width + timing->vsync_back_porch;
+		display_vstart *= hsync_period;
+		display_vstart += timing->hsync_skew;
+
+		display_vend = (timing->vsync_pulse_width + timing->vsync_back_porch +
+				fb_data->yres) * hsync_period;
+		display_vend += timing->hsync_skew - 1;
+	} else {
+		hsync_period = (timing->hsync_pulse_width + timing->hsync_back_porch +
+				fb_data->transformation_data.xres +
+				timing->hsync_front_porch);
+		hsync_start_x = (timing->hsync_pulse_width + timing->hsync_back_porch);
+		hsync_end_x = hsync_start_x +
+			fb_data->transformation_data.xres - 1;
+
+		vsync_period = (timing->vsync_pulse_width + timing->vsync_back_porch +
+				600 +
+				timing->vsync_front_porch);
+		vsync_period *= hsync_period;
+
+		display_vstart = timing->vsync_pulse_width + timing->vsync_back_porch;
+		display_vstart *= hsync_period;
+		display_vstart += timing->hsync_skew;
+
+		display_vend = (timing->vsync_pulse_width + timing->vsync_back_porch +
+				600) * hsync_period;
+		display_vend += timing->hsync_skew - 1;
+	}
+#endif
 
 	/* register values we pre-compute at init time from the timing
 	 * information in the panel info */
@@ -373,6 +547,10 @@ static int mdp_lcdc_probe(struct platform_device *pdev)
 #ifdef CONFIG_MSM_MDP40
 	struct mdp4_overlay_pipe *pipe;
 	int ptype;
+#endif
+
+#if defined(CONFIG_MACH_FLYER_SCREEN_ROTATION)
+	struct msm_fb_data *fb_data = NULL;
 #endif
 
 	if (!pdata) {
@@ -418,10 +596,11 @@ static int mdp_lcdc_probe(struct platform_device *pdev)
 	mdp_out_if_register(mdp_dev, MSM_LCDC_INTERFACE, lcdc, MDP_DMA_P_DONE,
 			    lcdc_dma_start);
 #endif
+	lcdc->mdp = container_of(mdp_dev, struct mdp_info, mdp_dev);
 	precompute_timing_parms(lcdc);
 
 	lcdc->fb_start = pdata->fb_resource->start;
-	lcdc->mdp = container_of(mdp_dev, struct mdp_info, mdp_dev);
+	//lcdc->mdp = container_of(mdp_dev, struct mdp_info, mdp_dev);
 	if(lcdc->mdp->mdp_dev.color_format)
 		lcdc->color_format = lcdc->mdp->mdp_dev.color_format;
 	else
@@ -444,14 +623,50 @@ static int mdp_lcdc_probe(struct platform_device *pdev)
 		pipe = lcdc_pipe;
 	}
 
+#if !defined(CONFIG_MACH_FLYER_SCREEN_ROTATION)
 	pipe->src_height = pdata->fb_data->yres;
 	pipe->src_width = pdata->fb_data->xres;
 	pipe->src_h = pdata->fb_data->yres;
 	pipe->src_w = pdata->fb_data->xres;
+#else
+	if (!(lcdc->mdp->mdp_dev.overrides & MSM_MDP_ROTATION_270)) {
+		pipe->src_height = pdata->fb_data->yres;
+		pipe->src_width = pdata->fb_data->xres;
+		pipe->src_h = pdata->fb_data->yres;
+		pipe->src_w = pdata->fb_data->xres;
+	} else {
+		pr_info("%s: init rotation tweak\n", __func__);
+		fb_data = pdata->fb_data;
+		pipe->src_height = fb_data->transformation_data.xres;
+		pipe->src_width = fb_data->transformation_data.yres;
+		pipe->src_h = fb_data->transformation_data.xres;
+		pipe->src_w = fb_data->transformation_data.yres;
+	}
+#endif
 	pipe->src_y = 0;
 	pipe->src_x = 0;
+#if !defined(CONFIG_MACH_FLYER_SCREEN_ROTATION)
 	pipe->srcp0_addr = (uint32_t) lcdc->fb_start;
+#else
+	if (!(lcdc->mdp->mdp_dev.overrides & MSM_MDP_ROTATION_270)) {
+		pipe->srcp0_addr = (uint32_t) lcdc->fb_start;
+	} else {
+		pipe->srcp0_addr = (uint32_t) lcdc->fb_start +
+			fb_data->transformation_data.xres *
+			fb_data->transformation_data.yres *
+			sizeof(uint32_t) * 2;
+	}
+#endif
+
+#if !defined(CONFIG_MACH_FLYER_SCREEN_ROTATION)
 	pipe->srcp0_ystride = pdata->fb_data->xres * 2;
+#else
+	if (!(lcdc->mdp->mdp_dev.overrides & MSM_MDP_ROTATION_270)) {
+		pipe->srcp0_ystride = pdata->fb_data->xres * 2;
+	} else {
+		pipe->srcp0_ystride = fb_data->transformation_data.yres * 2;
+	}
+#endif
 
 	mdp4_overlay_rgb_setup(pipe);
 	mdp4_mixer_stage_up(pipe);
@@ -467,13 +682,11 @@ static int mdp_lcdc_probe(struct platform_device *pdev)
 	lcdc->fb_panel_data.fb_data = pdata->fb_data;
 	lcdc->fb_panel_data.interface_type = MSM_LCDC_INTERFACE;
 	lcdc->fb_panel_data.shutdown = lcdc_shutdown;
-
 	ret = lcdc_hw_init(lcdc);
 	if (ret) {
 		pr_err("%s: Cannot initialize the mdp_lcdc\n", __func__);
 		goto err_hw_init;
 	}
-
 	lcdc->fb_pdev.name = "msm_panel";
 	lcdc->fb_pdev.id = pdata->fb_id;
 	lcdc->fb_pdev.resource = pdata->fb_resource;
@@ -488,6 +701,15 @@ static int mdp_lcdc_probe(struct platform_device *pdev)
 	}
 
 	pr_info("%s: initialized\n", __func__);
+#ifdef CONFIG_PANEL_SELF_REFRESH
+	if (lcdc->mdp->mdp_dev.overrides & MSM_MDP_RGB_PANEL_SELE_REFRESH) {
+		ret = display_selfrefresh_init(lcdc);
+		if (ret) {
+			pr_err("%s: Cannot init dispaly selfrefresh \n", __func__);
+			goto err_plat_dev_reg;
+		}
+	}
+#endif
 
 	return 0;
 

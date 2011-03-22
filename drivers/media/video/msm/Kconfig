@@ -104,6 +104,13 @@ config MSM_GEMINI
 	---help---
 	  Enable support for Gemini Jpeg Engine
 
+config MSM_VPE
+       bool "Qualcomm MSM Video Pre-processing Engine support"
+       depends on MSM_CAMERA_7X30
+       default y
+       ---help---
+         Enable support for Video Pre-processing Engine
+
 config MT9V113
 	bool "Sensor mt9v113"
 	depends on MSM_CAMERA

@@ -56,9 +56,48 @@ struct mdp_info {
 	struct mdp_blit_req *req;
 	uint32_t state;
 	struct timer_list standby_timer;
+	struct timer_list dma_timer;
 
 	int (*enable_irq)(struct mdp_info *mdp, uint32_t mask);
 	int (*disable_irq)(struct mdp_info *mdp, uint32_t mask);
+};
+
+struct mdp_lcdc_info {
+	struct mdp_info			*mdp;
+	struct clk			*mdp_clk;
+	struct clk			*pclk;
+	struct clk			*pad_pclk;
+	struct msm_panel_data		fb_panel_data;
+	struct platform_device		fb_pdev;
+	struct msm_lcdc_platform_data	*pdata;
+	uint32_t fb_start;
+
+	struct msmfb_callback		frame_start_cb;
+	wait_queue_head_t		vsync_waitq;
+	int				got_vsync;
+	unsigned			color_format;
+	struct {
+		uint32_t	clk_rate;
+		uint32_t	hsync_ctl;
+		uint32_t	vsync_period;
+		uint32_t	vsync_pulse_width;
+		uint32_t	display_hctl;
+		uint32_t	display_vstart;
+		uint32_t	display_vend;
+		uint32_t	hsync_skew;
+		uint32_t	polarity;
+	} parms;
+};
+
+struct panel_icm_info {
+	bool	icm_mode;
+	bool	icm_doable;
+	bool	clock_enabled;
+	int	panel_update;
+	struct mutex icm_lock;
+	struct mdp_lcdc_info *lcdc;
+	spinlock_t lock;
+	void (*force_leave)(void);
 };
 
 extern int mdp_out_if_register(struct mdp_device *mdp_dev, int interface,
@@ -79,6 +118,7 @@ int mdp_wait(struct mdp_info *mdp, uint32_t mask, wait_queue_head_t *wq);
 
 #define mdp_writel(mdp, value, offset) writel(value, mdp->base + offset)
 #define mdp_readl(mdp, offset) readl(mdp->base + offset)
+#define panel_to_lcdc(p) container_of((p), struct mdp_lcdc_info, fb_panel_data)
 
 /* define mdp state for multi purpose */
 #define MDP_STATE_STANDBY		(1 << 0)

@@ -423,7 +423,7 @@ samsung_store(struct device *dev, struct device_attribute *attr,
 		}
 		break;
 	case BC_MODE:
-		if (res >= BC_OFF && res < BC_UNDEF)
+		if (res < BC_UNDEF)
 			cabc->mode_bc = res;
 		break;
 	case AUTO_BACKLIGHT:

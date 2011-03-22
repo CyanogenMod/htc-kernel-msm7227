@@ -53,3 +53,4 @@ obj-$(CONFIG_GPU_MSM_KGSL) += gpu/kgsl/
 endif
 
 obj-$(CONFIG_MSM_HDMI) += hdmi/
+obj-$(CONFIG_VIDC_720P) += vidc/
