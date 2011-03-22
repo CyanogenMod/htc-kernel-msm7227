@@ -125,7 +125,7 @@ static void microp_led_jogball_brightness_set(struct led_classdev *led_cdev,
 	case 7:
 		data[0] = 2;
 		data[1] = 0;
-		data[2] = 60;
+		data[2] = 30;
 		break;
 	default:
 		pr_warning("%s: unknown value: %d\n", __func__, brightness);
