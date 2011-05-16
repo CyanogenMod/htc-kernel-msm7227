@@ -119,6 +119,22 @@ static struct platform_device usb_mass_storage_device = {
 	},
 };
 
+#ifdef CONFIG_USB_ANDROID_RNDIS
+static struct usb_ether_platform_data rndis_pdata = {
+	/* ethaddr is filled by board_serialno_setup */
+	.vendorID	= 0x18d1,
+	.vendorDescr	= "Google, Inc.",
+};
+
+static struct platform_device rndis_device = {
+	.name	= "rndis",
+	.id	= -1,
+	.dev	= {
+		.platform_data = &rndis_pdata,
+	},
+};
+#endif
+
 static struct android_usb_platform_data android_usb_pdata = {
 	.vendor_id	= 0x0bb4,
 	.product_id	= 0x0c97,
@@ -220,7 +236,7 @@ static struct microp_function_config microp_functions[] = {
 static struct microp_function_config microp_lightsensor = {
 	.name = "light_sensor",
 	.category = MICROP_FUNCTION_LSENSOR,
-	.levels = { 0, 0x21, 0x4D, 0xDC, 0x134, 0x18D, 0x1E5, 0x3FF, 0x3FF, 0x3FF },
+	.levels = { 0, 0x21, 0x4D, 0xDC, 0x134, 0x18D, 0x1E5, 0x2BA, 0x35C, 0x3FF },
 	.channel = 3,
 	.int_pin = 1 << 9,
 	.golden_adc = 0xC0,
@@ -761,7 +777,6 @@ static struct curcial_oj_platform_data legend_oj_data = {
 		10, 10, 10, 10, 10, 9, 9, 9, 9, 9,
 		9, 9, 9, 9, 9, 9, 9, 9, 9, 9},
 	.irq = MSM_uP_TO_INT(12),
-	.device_id = 0x0D,
 };
 
 static struct platform_device legend_oj = {
@@ -1017,7 +1032,9 @@ static void __init legend_init(void)
 
 	#ifdef CONFIG_SERIAL_MSM_HS
 	msm_device_uart_dm1.dev.platform_data = &msm_uart_dm1_pdata;
+#ifndef CONFIG_SERIAL_MSM_HS_PURE_ANDROID
 	msm_device_uart_dm1.name = "msm_serial_hs_ti"; /* for ti */
+#endif
 	msm_add_serial_devices(3);
 	#else
 	msm_add_serial_devices(0);
@@ -1037,6 +1054,9 @@ static void __init legend_init(void)
 	android_usb_pdata.serial_number = board_serialno();
 	msm_hsusb_pdata.serial_number = board_serialno();
 	msm_device_hsusb.dev.platform_data = &msm_hsusb_pdata;
+#ifdef CONFIG_USB_ANDROID_RNDIS
+	platform_device_register(&rndis_device);
+#endif
 	platform_device_register(&msm_device_hsusb);
 	platform_device_register(&usb_mass_storage_device);
 	platform_device_register(&android_usb_device);

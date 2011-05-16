@@ -1276,8 +1276,8 @@ static struct msm_lcdc_timing legend_lcdc_timing = {
 static struct msm_fb_data legend_lcdc_fb_data = {
 	.xres = 320,
 	.yres = 480,
-	.width = 67,
-	.height = 45,
+	.width = 45,
+	.height = 67,
 	.output_format = 0,
 };
 
@@ -1373,9 +1373,15 @@ int __init legend_init_panel(void)
 	printk("panel_type %d\n", panel_type);
 
         /* FIXME: This is a lcdc timing highjack for different panel */
-        if (panel_type)
+        if (panel_type) {
 		((struct msm_lcdc_platform_data *)
                 legend_lcdc_device.dev.platform_data)->timing->den_act_low = 0;
+	} else {
+		unsigned id;
+		id = PCOM_GPIO_CFG(LEGEND_GPIO_EL_EN, 0, GPIO_INPUT, GPIO_NO_PULL, GPIO_2MA),
+		msm_proc_comm(PCOM_RPC_GPIO_TLMM_CONFIG_EX, &id, 0);
+	}
+
 
 	ret = platform_device_register(&legend_lcdc_device);
 	if (ret != 0)

@@ -154,11 +154,14 @@ static unsigned int legend_sdslot_status(struct device *dev)
 
 #define LEGEND_MMC_VDD	(MMC_VDD_28_29 | MMC_VDD_29_30)
 
+static unsigned int legend_sdslot_type = MMC_TYPE_SD;
+
 static struct mmc_platform_data legend_sdslot_data = {
 	.ocr_mask	= LEGEND_MMC_VDD,
 	.status_irq	= MSM_GPIO_TO_INT(LEGEND_GPIO_SDMC_CD_N),
 	.status		= legend_sdslot_status,
 	.translate_vdd	= legend_sdslot_switchvdd,
+	.slot_type	= &legend_sdslot_type,
 };
 
 /* ---- WIFI ---- */
@@ -258,9 +261,9 @@ EXPORT_SYMBOL(legend_wifi_set_carddetect);
 #define ID_BT	1
 #define CLK_OFF	0
 #define CLK_ON	1
-int latte_fast_clk_state_wifi = CLK_OFF;
-int latte_fast_clk_state_bt = CLK_OFF;
-static DEFINE_SPINLOCK(latte_f_slock);
+int legend_fast_clk_state_wifi = CLK_OFF;
+int legend_fast_clk_state_bt = CLK_OFF;
+static DEFINE_SPINLOCK(legend_f_slock);
 
 static int fast_clk_ctl(int on, int id)
 {
@@ -273,22 +276,22 @@ static int fast_clk_ctl(int on, int id)
 	printk(KERN_DEBUG "--- %s ON=%d, ID=%s ---\n",
 		__func__, on, id ? "BT":"WIFI");
 
-	spin_lock_irqsave(&latte_f_slock, flags);
+	spin_lock_irqsave(&legend_f_slock, flags);
 	if (on) {
-		if ((CLK_OFF == latte_fast_clk_state_wifi)
-			&& (CLK_OFF == latte_fast_clk_state_bt)) {
+		if ((CLK_OFF == legend_fast_clk_state_wifi)
+			&& (CLK_OFF == legend_fast_clk_state_bt)) {
 
 			rc = vreg_enable(vreg_wifi_osc);
 		}
 
 		if (id == ID_BT)
-			latte_fast_clk_state_bt = CLK_ON;
+			legend_fast_clk_state_bt = CLK_ON;
 		else
-			latte_fast_clk_state_wifi = CLK_ON;
+			legend_fast_clk_state_wifi = CLK_ON;
 	} else {
-		if (((id == ID_BT) && (CLK_OFF == latte_fast_clk_state_wifi))
+		if (((id == ID_BT) && (CLK_OFF == legend_fast_clk_state_wifi))
 			|| ((id == ID_WIFI)
-			&& (CLK_OFF == latte_fast_clk_state_bt))) {
+			&& (CLK_OFF == legend_fast_clk_state_bt))) {
 
 			vreg_disable(vreg_wifi_osc);
 		} else {
@@ -296,11 +299,11 @@ static int fast_clk_ctl(int on, int id)
 		}
 
 		if (id)
-			latte_fast_clk_state_bt = CLK_OFF;
+			legend_fast_clk_state_bt = CLK_OFF;
 		else
-			latte_fast_clk_state_wifi = CLK_OFF;
+			legend_fast_clk_state_wifi = CLK_OFF;
 	}
-	spin_unlock_irqrestore(&latte_f_slock, flags);
+	spin_unlock_irqrestore(&legend_f_slock, flags);
 
 	return 0;
 }
