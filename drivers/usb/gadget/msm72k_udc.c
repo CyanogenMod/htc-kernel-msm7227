@@ -1086,7 +1086,6 @@ static irqreturn_t usb_interrupt(int irq, void *data)
 	struct usb_info *ui = data;
 	unsigned n;
 	unsigned long flags;
-	struct usb_composite_dev *cdev = get_gadget_data(&ui->gadget);
 
 	n = readl(USB_USBSTS);
 	writel(n, USB_USBSTS);
@@ -1132,7 +1131,6 @@ static irqreturn_t usb_interrupt(int irq, void *data)
 			*/
 			atomic_set(&ui->online, 0);
 
-			cdev->mute_switch = 1;
 			handle_notify_offline(ui);
 		}
 		if (ui->connect_type != CONNECT_TYPE_USB) {
