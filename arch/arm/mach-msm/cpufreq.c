@@ -183,6 +183,11 @@ static int __cpuinit msm_cpufreq_init(struct cpufreq_policy *policy)
 #ifdef CONFIG_MSM_CPU_FREQ_SET_MIN_MAX
 	policy->min = CONFIG_MSM_CPU_FREQ_MIN;
 	policy->max = CONFIG_MSM_CPU_FREQ_MAX;
+#else
+#ifndef CONFIG_PERFLOCK
+	policy->min = CONFIG_MSM_CPU_FREQ_ONDEMAND_MIN;
+	policy->max = CONFIG_MSM_CPU_FREQ_ONDEMAND_MAX;
+#endif
 #endif
 
 #ifndef CONFIG_ARCH_MSM8X60
