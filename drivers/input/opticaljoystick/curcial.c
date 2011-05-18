@@ -35,6 +35,7 @@
 #define OJ_POWEROFF                 0
 #define CURCIAL_OJ_POWER            85
 #define BURST_DATA_SIZE             7
+#define OJ_DEVICE_ID                0x0D
 #define OJ_REGISTER_WRITE           0x7B
 #define OJ_REGISTER_REQUEST         0x7C
 #define OJ_REGISTER_READ            0x7D
@@ -177,13 +178,13 @@ static int curcial_oj_init(void)
 	curcial_oj_register_read(OJ_DELTA_X);
 
 	for (i = 0;i < OJ_RETRY; i++ ) {
-	id = curcial_oj_register_read(0x00);
-	if (id == my_oj->device_id) {
-		printk(KERN_INFO"OpticalJoystick Device ID: %02x\n", my_oj->device_id);
-		id = curcial_oj_register_read(0x01);
-		printk(KERN_INFO"OJ Driver: Revision : %02x\n", id);
+		id = curcial_oj_register_read(0x00);
+		if (id == OJ_DEVICE_ID || id == my_oj->device_id) {
+			printk(KERN_INFO"OpticalJoystick Device ID: %02x\n", id);
+			id = curcial_oj_register_read(0x01);
+			printk(KERN_INFO"OJ Driver: Revision : %02x\n", id);
 			break;
-	} else {
+		} else {
 			printk("probe OpticalJoystick Device:retry =%d\n", i);
 		}
 	}
