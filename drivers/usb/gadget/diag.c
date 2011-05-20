@@ -495,6 +495,7 @@ static void diag_process_hdlc(struct diag_context *ctxt, void *_data, unsigned l
 	ctxt->hdlc_count = count;
 	ctxt->hdlc_escape = escape;
 }
+#endif
 
 #if ROUTE_TO_USERSPACE
 static int if_route_to_userspace(struct diag_context *ctxt, unsigned int cmd_id)
