@@ -273,7 +273,7 @@ wl_iw_set_scan(
 	char *extra
 );
 
-#ifndef CSCAN
+#if !defined(CSCAN)
 static int
 wl_iw_get_scan(
 	struct net_device *dev,
