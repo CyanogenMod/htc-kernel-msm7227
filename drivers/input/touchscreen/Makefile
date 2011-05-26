@@ -38,6 +38,7 @@ obj-$(CONFIG_TOUCHSCREEN_PENMOUNT)	+= penmount.o
 obj-$(CONFIG_TOUCHSCREEN_S3C2410)	+= s3c2410_ts.o
 obj-$(CONFIG_TOUCHSCREEN_SYNAPTICS_3K)       += synaptics_3k.o
 obj-$(CONFIG_TOUCHSCREEN_SYNAPTICS_I2C_RMI)	+= synaptics_i2c_rmi.o
+obj-$(CONFIG_TOUCHSCREEN_SYNAPTICS_T1021)       += synaptics_t1021.o
 obj-$(CONFIG_TOUCHSCREEN_ATMEL) += atmel.o
 obj-$(CONFIG_TOUCHSCREEN_NTRIG) += ntrig.o
 obj-$(CONFIG_TOUCHSCREEN_NTRIG_8x60) += ntrig_8x60.o
