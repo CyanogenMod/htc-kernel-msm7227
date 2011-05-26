@@ -67,10 +67,10 @@ struct synaptics_i2c_rmi_platform_data {
 	uint32_t snap_bottom_off; /* 0x10000 = screen height */
 	uint32_t fuzz_x; /* 0x10000 = screen width */
 	uint32_t fuzz_y; /* 0x10000 = screen height */
-	int abs_x_min;
-	int abs_x_max;
-	int abs_y_min;
-	int abs_y_max;
+	uint16_t abs_x_min;
+	uint16_t abs_x_max;
+	uint16_t abs_y_min;
+	uint16_t abs_y_max;
 	int fuzz_p;
 	int fuzz_w;
 	uint32_t display_width;
