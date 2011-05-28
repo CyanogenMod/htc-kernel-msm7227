@@ -392,10 +392,7 @@ int gpio_event_matrix_func(struct gpio_event_input_devs *input_devs,
 	if (func == GPIO_EVENT_FUNC_SUSPEND || func == GPIO_EVENT_FUNC_RESUME) {
 		/* TODO: disable scanning */
 		if (mi->detect_phone_status == 0) {
-			if (func == GPIO_EVENT_FUNC_SUSPEND)
-				irq_status = 0;
-			else
-				irq_status = 1;
+			return 0;
 		} else {
 			phone_call_status = gpio_event_get_phone_call_status() & 0x01;
 			fm_radio_status = gpio_event_get_fm_radio_status() & 0x01;
