@@ -843,24 +843,20 @@ struct platform_device bcm_bt_lpm_device = {
 #define BDADDR_STR_SIZE 18
 
 static char bdaddr[BDADDR_STR_SIZE];
+extern unsigned char *get_bt_bd_ram(void);
 
-module_param_string(bdaddr, bdaddr, sizeof(bdaddr), 0400);
-MODULE_PARM_DESC(bdaddr, "bluetooth address");
-
-static int __init parse_tag_bdaddr(const struct tag *tag)
+static void bt_export_bd_address(void)
 {
-        unsigned char *b = (unsigned char *)&tag->u;
+	unsigned char cTemp[6];
 
-        if (tag->hdr.size != ATAG_BDADDR_SIZE)
-                return -EINVAL;
-
-        snprintf(bdaddr, BDADDR_STR_SIZE, "%02X:%02X:%02X:%02X:%02X:%02X",
-                        b[0], b[1], b[2], b[3], b[4], b[5]);
-
-        return 0;
+	memcpy(cTemp, get_bt_bd_ram(), 6);
+	sprintf(bdaddr, "%02x:%02x:%02x:%02x:%02x:%02x",
+		cTemp[0], cTemp[1], cTemp[2], cTemp[3], cTemp[4], cTemp[5]);
+	printk(KERN_INFO "BT HW address=%s\n", bdaddr);
 }
 
-__tagtable(ATAG_BDADDR, parse_tag_bdaddr);
+module_param_string(bdaddr, bdaddr, sizeof(bdaddr), S_IWUSR | S_IRUGO);
+MODULE_PARM_DESC(bdaddr, "bluetooth address");
 
 #elif defined(CONFIG_SERIAL_MSM_HS)
 static struct msm_serial_hs_platform_data msm_uart_dm1_pdata = {
@@ -1122,10 +1118,8 @@ static void __init liberty_init(void)
 	printk("liberty_init() revision = 0x%X\n", system_rev);
 	board_get_cid_tag(&cid);
 
-#ifndef CONFIG_SERIAL_MSM_HS_PURE_ANDROID
 	/* for bcm */
 	bt_export_bd_address();
-#endif
 
 	/*
 	 * Setup common MSM GPIOS
