@@ -603,7 +603,8 @@ static void __init acpuclk_init(void)
 		if (socinfo_init() < 0)
 			BUG();
 
-		if ((SOCINFO_VERSION_MAJOR(socinfo_get_version()) > 1)
+		if (machine_arch_type != MACH_TYPE_MARVEL
+			&& (SOCINFO_VERSION_MAJOR(socinfo_get_version()) > 1)
 			|| ((SOCINFO_VERSION_MAJOR(socinfo_get_version()) == 1)
 			&& (SOCINFO_VERSION_MINOR(socinfo_get_version()) >= 3)))
 			{
