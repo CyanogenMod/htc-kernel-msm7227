@@ -33,6 +33,7 @@
 #include <linux/debugfs.h>
 #include <linux/dma-mapping.h>
 #include <linux/android_pmem.h>
+#include "mdp_hw.h"
 
 extern void start_drawing_late_resume(struct early_suspend *h);
 static void msmfb_resume_handler(struct early_suspend *h);
@@ -58,6 +59,11 @@ extern int load_565rle_image(char *filename);
 #define FPS 0x2
 #define BLIT_TIME 0x4
 #define SHOW_UPDATES 0x8
+
+#ifdef CONFIG_PANEL_SELF_REFRESH
+extern struct panel_icm_info *panel_icm;
+extern wait_queue_head_t panel_update_wait_queue;
+#endif
 
 #define DLOG(mask, fmt, args...) \
 do { \
@@ -281,12 +287,18 @@ static enum hrtimer_restart msmfb_fake_vsync(struct hrtimer *timer)
 	return HRTIMER_NORESTART;
 }
 
+#if defined(CONFIG_MACH_FLYER_SCREEN_ROTATION)
+int r90(int offset);
+#endif
 static void msmfb_pan_update(struct fb_info *info, uint32_t left, uint32_t top,
 			     uint32_t eright, uint32_t ebottom,
 			     uint32_t yoffset, int pan_display)
 {
 	struct msmfb_info *msmfb = info->par;
 	struct msm_panel_data *panel = msmfb->panel;
+#ifdef CONFIG_PANEL_SELF_REFRESH
+	struct mdp_lcdc_info *lcdc = panel_to_lcdc(panel);
+#endif
 	unsigned long irq_flags=0;
 	int sleeping;
 	int retry = 1;
@@ -303,11 +315,26 @@ static void msmfb_pan_update(struct fb_info *info, uint32_t left, uint32_t top,
         if (msmfb->sleeping != AWAKE)
                 DLOG(SUSPEND_RESUME, "pan_update in state(%d)\n", msmfb->sleeping);
 
+#ifdef CONFIG_PANEL_SELF_REFRESH
+	if (lcdc->mdp->mdp_dev.overrides & MSM_MDP_RGB_PANEL_SELE_REFRESH) {
+		spin_lock_irqsave(&panel_icm->lock, irq_flags);
+		panel_icm->panel_update = 1;
+		spin_unlock_irqrestore(&panel_icm->lock, irq_flags);
+		wake_up(&panel_update_wait_queue);
+	}
+#endif
+
 #if (defined(CONFIG_USB_FUNCTION_PROJECTOR) || defined(CONFIG_USB_ANDROID_PROJECTOR))
 	/* Jay, 8/1/09' */
 	msmfb_set_var(msmfb->fb->screen_base, yoffset);
 #endif
 
+#if defined(CONFIG_MACH_FLYER_SCREEN_ROTATION)
+        //struct msm_panel_data *panel = msmfb->panel;
+	if (panel_to_lcdc(msmfb->panel)->mdp->mdp_dev.overrides &
+			MSM_MDP_ROTATION_270)
+		r90(yoffset);
+#endif
 restart:
 	spin_lock_irqsave(&msmfb->update_lock, irq_flags);
 

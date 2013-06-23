@@ -29,7 +29,7 @@
 #endif
 
 #define MSM_A2M_INT(n) (MSM_CSR_BASE + 0x400 + (n) * 4)
-#define PROC_COMM_TIMEOUT	(10 * HZ)
+#define TIMEOUT		10000000
 
 static inline void notify_other_proc_comm(void)
 {
@@ -52,6 +52,8 @@ static inline void notify_other_proc_comm(void)
 
 static DEFINE_SPINLOCK(proc_comm_lock);
 
+void msm_pm_flush_console(void);
+
 /* The higher level SMD support will install this to
  * provide a way to check for and handle modem restart.
  */
@@ -68,7 +70,7 @@ int (*msm_check_for_modem_crash)(void);
 static int proc_comm_wait_for(void __iomem *addr, unsigned value)
 {
 #ifdef CONFIG_PROC_COMM_TIMEOUT_RESET
-	unsigned long expired_time = jiffies + PROC_COMM_TIMEOUT;
+	unsigned long timeout = TIMEOUT;
 #endif
 
 	for (;;) {
@@ -79,14 +81,20 @@ static int proc_comm_wait_for(void __iomem *addr, unsigned value)
 			if (msm_check_for_modem_crash())
 				return -EAGAIN;
 #ifdef CONFIG_PROC_COMM_TIMEOUT_RESET
-		if (time_after(jiffies, expired_time)) {
+		udelay(1);
+		if (timeout-- == 0) {
 			if (msm_hw_reset_hook) {
 				pr_err("proc_comm: TIMEOUT. modem has probably "
 						"crashed.\n");
+				dump_stack();
+				msm_pm_flush_console();
 				msm_hw_reset_hook();
-			} else
+			} else {
 				pr_err("proc_comm: TIMEOUT. modem has probably "
 						"crashed. retrying.\n");
+				msm_pm_flush_console();
+			}
+			timeout = TIMEOUT;
 		}
 #endif
 	}

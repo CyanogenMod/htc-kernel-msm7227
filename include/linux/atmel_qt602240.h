@@ -244,6 +244,10 @@
 #define CB_IDLEGCAFDEPTH                        2
 #define CB_ACTVGCAFDEPTH                        3
 
+#define NC_TCHTHR                               0
+#define NC_TCHDI                                1
+#define NC_NOISETHR                             2
+
 /* filter_level */
 #define FL_XLOGRIPMIN                           0
 #define FL_XLOGRIPMAX                           1
@@ -315,6 +319,7 @@ struct atmel_i2c_platform_data {
 	int8_t cable_config_T9[32];
 	int8_t cable_config_T22[17];
 	int8_t cable_config_T28[6];
+	int8_t noise_config[3];
 	uint16_t filter_level[4];
 	uint8_t GCAF_level[5];
 };

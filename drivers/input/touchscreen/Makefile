@@ -34,6 +34,7 @@ obj-$(CONFIG_TOUCHSCREEN_SYNAPTICS_I2C_RMI)	+= synaptics_i2c_rmi.o
 obj-$(CONFIG_TOUCHSCREEN_SYNAPTICS_T1021)       += synaptics_t1021.o
 obj-$(CONFIG_TOUCHSCREEN_ATMEL) += atmel.o
 obj-$(CONFIG_TOUCHSCREEN_NTRIG) += ntrig.o
+obj-$(CONFIG_TOUCHSCREEN_ELAN_KTF2K)	+= elan_ktf2k.o
 obj-$(CONFIG_TOUCHSCREEN_TOUCHIT213)	+= touchit213.o
 obj-$(CONFIG_TOUCHSCREEN_TOUCHRIGHT)	+= touchright.o
 obj-$(CONFIG_TOUCHSCREEN_TOUCHWIN)	+= touchwin.o

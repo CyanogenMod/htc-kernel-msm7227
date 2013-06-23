@@ -528,7 +528,7 @@ static void mmc_remove(struct mmc_host *host)
 }
 
 
-#ifdef CONFIG_MMC_BLOCK_DEFERRED_RESUME
+#if 0
 /*
  * When "deferred resume" fails, run another thread to stop mmcqd.
  */
@@ -622,7 +622,7 @@ static int mmc_resume(struct mmc_host *host)
 	err = mmc_init_card(host, host->ocr, host->card);
 	mmc_release_host(host);
 
-#ifdef CONFIG_MMC_BLOCK_DEFERRED_RESUME
+#if 0
 	if (err)
 		mmc_err_with_deferred_resume(host);
 #endif

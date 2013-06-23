@@ -382,7 +382,10 @@ err_create_button_work_queue:
 	destroy_workqueue(detect_wq);
 
 err_create_detect_work_queue:
+	wake_lock_destroy(&hi->hs_wake_lock);
 	kfree(hi);
+
+	HS_LOG("Failed to register %s driver", DRIVER_NAME);
 
 	return ret;
 }
@@ -405,6 +408,8 @@ static int htc_headset_microp_remove(struct platform_device *pdev)
 
 	destroy_workqueue(button_wq);
 	destroy_workqueue(detect_wq);
+
+	wake_lock_destroy(&hi->hs_wake_lock);
 
 	kfree(hi);
 

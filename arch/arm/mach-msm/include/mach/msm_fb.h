@@ -32,6 +32,12 @@ struct mddi_info;
 #define MSM_MDP_PANEL_FLIP_LR			(1 << 2)
 #define MSM_MDP4_MDDI_DMA_SWITCH		(1 << 3)
 #define MSM_MDP_DMA_PACK_ALIGN_LSB		(1 << 4)
+#define MSM_MDP_RGB_PANEL_SELE_REFRESH		(1 << 5)
+
+#if defined(CONFIG_MACH_FLYER_SCREEN_ROTATION)
+#define MSM_MDP_ROTATION_90			(1 << 30)
+#define MSM_MDP_ROTATION_270			(1 << 31)
+#endif
 
 /* mddi type */
 #define MSM_MDP_MDDI_TYPE_I	 0
@@ -43,6 +49,12 @@ struct msm_fb_data {
 	int width;	/* disply width in mm */
 	int height;	/* display height in mm */
 	unsigned output_format;
+#if defined(CONFIG_MACH_FLYER_SCREEN_ROTATION)
+	struct {
+                int		xres, yres;
+                uint32_t	paddr;
+	} transformation_data;
+#endif
 };
 
 struct msmfb_callback {
@@ -324,6 +336,12 @@ struct msm_fb_info {
 
 extern int msmfb_get_var(struct msm_fb_info *tmp);
 extern int msmfb_get_fb_area(void);
+#endif
+
+#if defined(CONFIG_MACH_FLYER_SCREEN_ROTATION)
+struct rotator_platform_data {
+	uint32_t operations;
+};
 #endif
 
 #endif

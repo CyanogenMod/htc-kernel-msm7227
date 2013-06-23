@@ -106,6 +106,28 @@ static struct platform_device ram_console_device = {
 	.resource       = ram_console_resource,
 };
 
+#ifdef CONFIG_MSM_CAMERA_7X30
+static struct resource msm_vpe_resources[] = {
+       {
+               .start  = 0xAD200000,
+               .end    = 0xAD200000 + SZ_1M - 1,
+               .flags  = IORESOURCE_MEM,
+       },
+       {
+               .start  = INT_VPE,
+               .end    = INT_VPE,
+               .flags  = IORESOURCE_IRQ,
+       },
+};
+
+static struct platform_device msm_vpe_device = {
+       .name = "msm_vpe",
+       .id   = 0,
+       .num_resources = ARRAY_SIZE(msm_vpe_resources),
+       .resource = msm_vpe_resources,
+};
+#endif
+
 #if defined(CONFIG_MSM_HW3D)
 static struct resource resources_hw3d[] = {
 	{
@@ -290,6 +312,10 @@ void __init msm_add_mem_devices(struct msm_pmem_setting *setting)
 #endif
 		platform_device_register(&msm_kgsl_device);
 	}
+#endif
+
+#ifdef CONFIG_MSM_CAMERA_7X30
+		platform_device_register(&msm_vpe_device);
 #endif
 }
 

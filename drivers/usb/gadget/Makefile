@@ -43,6 +43,9 @@ g_file_storage-objs		:= file_storage.o
 g_printer-objs			:= printer.o
 g_cdc-objs			:= cdc2.o
 serial-objs			:= f_serial.o
+ifeq ($(CONFIG_USB_ANDROID_LTE_DIAG),y)
+diag-objs			:= f_diag.o
+endif
 
 obj-$(CONFIG_USB_ZERO)		+= g_zero.o
 obj-$(CONFIG_USB_AUDIO)		+= g_audio.o
@@ -65,7 +68,7 @@ obj-$(CONFIG_USB_ANDROID_ECM)	+= f_ecm.o u_ether.o
 
 # MSM specific
 ifeq ($(CONFIG_USB_ANDROID_LTE_DIAG),y)
-  obj-$(CONFIG_USB_ANDROID_DIAG)	+= f_diag.o
+  obj-$(CONFIG_USB_ANDROID_DIAG)	+= diag.o
 else
   obj-$(CONFIG_USB_ANDROID_DIAG)	+= diag.o
 endif

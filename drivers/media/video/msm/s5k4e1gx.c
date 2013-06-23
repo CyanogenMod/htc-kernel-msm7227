@@ -45,6 +45,8 @@ static struct platform_device *s5k4e1_pdev;
 static struct wake_lock s5k4e1gx_wake_lock;
 
 static int sensor_probe_node = 0;
+static int preview_frame_count = 0;
+static int fps_mode_sel;
 
 static inline void init_suspend(void)
 {
@@ -193,17 +195,17 @@ struct reg_struct {
 	uint32_t  blk_p;
 };
 
-struct reg_struct s5k4e1gx_reg_pat[2] = {
-	{/*Preview*/
+struct reg_struct s5k4e1gx_reg_cand[2] = {
+	{/*Preview, for normal speed*/
 		0x06,  /* pre_pll_clk_div               REG=0x0305 */
 		0x00,  /* pll_multiplier_msb            REG=0x0306 */
-		0x50,  /* pll_multiplier_lsb            REG=0x0307 */		//0x68,	//0x68
+		0x50,  /* pll_multiplier_lsb            REG=0x0307 */
 		0x00,  /* vt_sys_clk_div                REG=0x30B5 */
 		0xB0,  /* DPHY_bandctrl                 REG=0x30F1 */
 		0x00,  /* read_mode                     REG=0x0101 */
-		0x05,  /* x_output_size_msb             REG=0x034C */	// Width = 0x0518 = 1304
+		0x05,  /* x_output_size_msb             REG=0x034C */
 		0x18,  /* x_output_size_lsb             REG=0x034D */
-		0x03,  /* y_output_size_msb             REG=0x034E */	// High  = 0x03D4 =  980
+		0x03,  /* y_output_size_msb             REG=0x034E */
 		0xD4,  /* y_output_size_lsb             REG=0x034F */
 		0x01,  /* x_even_inc                    REG=0x0381 */
 		0x01,  /* x_odd_inc                     REG=0x0383 */
@@ -211,10 +213,10 @@ struct reg_struct s5k4e1gx_reg_pat[2] = {
 		0x03,  /* y_odd_inc                     REG=0x0387 */
 		0x02,  /* h_binning                     REG=0x30A9 */
 		0xEB,  /* v_binning                     REG=0x300E */
-		0x03,  /* frame_length_lines_msb        REG=0x0340 */	//0x04,	//0x03,	//0x03,
-		0xE0,  /* frame_length_lines_lsb        REG=0x0341 */	//0x08,	//0xE0,	//0xDE,
-		0x0A,  /* line_length_pck_msb           REG=0x0342 */	//0x0A,	//0x0A,	//0x0A,
-		0xB2,  /* line_length_pck_lsb           REG=0x0343 */	//0xB2,	//0xB2,	//0xAC,
+		0x03,  /* frame_length_lines_msb        REG=0x0340 */
+		0xE0,  /* frame_length_lines_lsb        REG=0x0341 */
+		0x0A,  /* line_length_pck_msb           REG=0x0342 */
+		0xB2,  /* line_length_pck_lsb           REG=0x0343 */
 		0x10,  /* pclk_inv;                     REG=0x3110 */
 		0x0C,  /* pclk_delay;                   REG=0x3117 */
 		0x0A,  /* v_h_strength;                 REG=0x3119 */
@@ -227,15 +229,94 @@ struct reg_struct s5k4e1gx_reg_pat[2] = {
 		0x20,  /* analogue_gain_code_global_lsb REG=0x0205 */
 		0x03,  /* coarse_integration_time_msb   REG=0x0202 */
 		0x1F,  /* coarse_intergation_time_lsb   REG=0x0203 */
-		 980,  /* size_h 				   */	// 972,		// 972,
-		  12,  /* blk_l  				   */	//  10,		//  18,
-		1304,  /* size_w 				   */	//1296,		//1296,
-		1434   /* blk_p  				   */	//1442 		//1436,
+		 980,  /* size_h*/
+		  12,  /* blk_l*/
+		1304,  /* size_w*/
+		1434   /* blk_p*/
+	},
+	{/*Preview, for FAST speed*/
+		0x06,  /* pre_pll_clk_div               REG=0x0305 */
+		0x00,  /* pll_multiplier_msb            REG=0x0306 */
+		0x6A,  /* pll_multiplier_lsb            REG=0x0307 */
+		0x00,  /* vt_sys_clk_div                REG=0x30B5 */
+		0xD0,  /* DPHY_bandctrl                 REG=0x30F1 */
+		0x00,  /* read_mode                     REG=0x0101 */
+		0x05,  /* x_output_size_msb             REG=0x034C */
+		0x18,  /* x_output_size_lsb             REG=0x034D */
+		0x01,  /* y_output_size_msb             REG=0x034E */
+		0xEA,  /* y_output_size_lsb             REG=0x034F */
+		0x01,  /* x_even_inc                    REG=0x0381 */
+		0x01,  /* x_odd_inc                     REG=0x0383 */
+		0x01,  /* y_even_inc                    REG=0x0385 */
+		0x07,  /* y_odd_inc                     REG=0x0387 */
+		0x02,  /* h_binning                     REG=0x30A9 */
+		0xEB,  /* v_binning                     REG=0x300E */
+		0x02,  /* frame_length_lines_msb        REG=0x0340 */
+		0x05,  /* frame_length_lines_lsb        REG=0x0341 */
+		0x0A,  /* line_length_pck_msb           REG=0x0342 */
+		0xB2,  /* line_length_pck_lsb           REG=0x0343 */
+		0x00,  /* pclk_inv;                     REG=0x3110 */
+		0x06,  /* pclk_delay;                   REG=0x3117 */
+		0x0F,  /* v_h_strength;                 REG=0x3119 */
+		0xFF,  /* data_pclk_strength;           REG=0x311A */
+		0x82,  /* cds_test                      REG=0x300F */
+		0xC0,  /* rst_offset1                   REG=0x3013 */
+		0x94,  /* rmp_init                      REG=0x3017 */ /*0x94*/
+		0x83,  /* comp_bias                   REG=0x301B */ /*0x83*/
+		0x00,  /* analogue_gain_code_global_msb REG=0x0204 */
+		0x80,  /* analogue_gain_code_global_lsb REG=0x0205 */
+		0x01,  /* coarse_integration_time_msb   REG=0x0202 */
+		0xF0,  /* coarse_intergation_time_lsb   REG=0x0203 */
+		 490,  /* size_h*/
+		  27,  /* blk_l*/
+		1304,/*size_w*/
+		1434   /* blk_p*/
+	}
+};
+
+struct reg_struct s5k4e1gx_reg_pat[2] = {
+	{/*Preview*/
+		0x06,  /* pre_pll_clk_div               REG=0x0305 */
+		0x00,  /* pll_multiplier_msb            REG=0x0306 */
+		0x50,  /* pll_multiplier_lsb            REG=0x0307 */
+		0x00,  /* vt_sys_clk_div                REG=0x30B5 */
+		0xB0,  /* DPHY_bandctrl                 REG=0x30F1 */
+		0x00,  /* read_mode                     REG=0x0101 */
+		0x05,  /* x_output_size_msb             REG=0x034C */
+		0x18,  /* x_output_size_lsb             REG=0x034D */
+		0x03,  /* y_output_size_msb             REG=0x034E */
+		0xD4,  /* y_output_size_lsb             REG=0x034F */
+		0x01,  /* x_even_inc                    REG=0x0381 */
+		0x01,  /* x_odd_inc                     REG=0x0383 */
+		0x01,  /* y_even_inc                    REG=0x0385 */
+		0x03,  /* y_odd_inc                     REG=0x0387 */
+		0x02,  /* h_binning                     REG=0x30A9 */
+		0xEB,  /* v_binning                     REG=0x300E */
+		0x03,  /* frame_length_lines_msb        REG=0x0340 */
+		0xE0,  /* frame_length_lines_lsb        REG=0x0341 */
+		0x0A,  /* line_length_pck_msb           REG=0x0342 */
+		0xB2,  /* line_length_pck_lsb           REG=0x0343 */
+		0x10,  /* pclk_inv;                     REG=0x3110 */
+		0x0C,  /* pclk_delay;                   REG=0x3117 */
+		0x0A,  /* v_h_strength;                 REG=0x3119 */
+		0xAA,  /* data_pclk_strength;           REG=0x311A */
+		0x82,  /* cds_test                      REG=0x300F */
+		0xC0,  /* rst_offset1                   REG=0x3013 */
+		0xA4,  /* rmp_init                      REG=0x3017 */ /*0x94*/
+		0x88,  /* comp_bias                   REG=0x301B */ /*0x83*/
+		0x00,  /* analogue_gain_code_global_msb REG=0x0204 */
+		0x20,  /* analogue_gain_code_global_lsb REG=0x0205 */
+		0x03,  /* coarse_integration_time_msb   REG=0x0202 */
+		0x1F,  /* coarse_intergation_time_lsb   REG=0x0203 */
+		 980,  /* size_h*/
+		  12,  /* blk_l*/
+		1304,  /* size_w*/
+		1434   /* blk_p*/
 	},
 	{ /*Snapshot*/
 		0x06,  /* pre_pll_clk_div               REG=0x0305 */
 		0x00,  /* pll_multiplier_msb            REG=0x0306 */
-		0x50,  /* pll_multiplier_lsb            REG=0x0307 */		//0x68,	//0x68
+		0x50,  /* pll_multiplier_lsb            REG=0x0307 */
 		0x00,  /* vt_sys_clk_div                REG=0x30B5 */
 		0xB0,  /* DPHY_bandctrl                 REG=0x30F1 */
 		0x00,  /* read_mode                     REG=0x0101 */
@@ -249,10 +330,10 @@ struct reg_struct s5k4e1gx_reg_pat[2] = {
 		0x01,  /* y_odd_inc                     REG=0x0387 */
 		0x03,  /* h_binning                     REG=0x30A9 */
 		0xE8,  /* v_binning                     REG=0x300E */
-		0x07,  /* frame_length_lines_msb        REG=0x0340 */	//0x07,	//0x07,	//0x07,
-		0xB4,  /* frame_length_lines_lsb        REG=0x0341 */	//0xF0,	//0xB4,	//0xB6,
-		0x0A,  /* line_length_pck_msb           REG=0x0342 */	//0x0A,	//0x0A,	//0x0A,
-		0xB2,  /* line_length_pck_lsb           REG=0x0343 */ 	//0xB2,	//0xB2,	//0xAC,
+		0x07,  /* frame_length_lines_msb        REG=0x0340 */
+		0xB4,  /* frame_length_lines_lsb        REG=0x0341 */
+		0x0A,  /* line_length_pck_msb           REG=0x0342 */
+		0xB2,  /* line_length_pck_lsb           REG=0x0343 */
 		0x10,  /* pclk_inv;                     REG=0x3110 */
 		0x0C,  /* pclk_delay;                   REG=0x3117 */
 		0x0A,  /* v_h_strength;                 REG=0x3119 */
@@ -265,10 +346,10 @@ struct reg_struct s5k4e1gx_reg_pat[2] = {
 		0x80,  /* analogue_gain_code_global_lsb REG=0x0205 */
 		0x07,  /* coarse_integration_time_msb   REG=0x0202 */
 		0xA8,  /* coarse_intergation_time_lsb   REG=0x0203 */
-		1960,  /* size_h 				   */	//1960,     //1960,
-		  12,  /* blk_l  				   */   //  72,     //  14,
-		2608,  /* size_w 				   */   //2608,     //2608,
-		 130   /* blk_p  				   */   // 130      // 124,
+		1960,  /* size_h */
+		  12,  /* blk_l*/
+		2608,  /* size_w*/
+		 130   /* blk_p*/
 	}
 };
 
@@ -570,6 +651,18 @@ static int s5k4e1gx_probe_init_sensor(const struct msm_camera_sensor_info *data)
 		s5k4e1gx_reg_pat[S_RES_PREVIEW].rst_offset1 	= 0x90;
 		s5k4e1gx_reg_pat[S_RES_PREVIEW].rmp_init	= 0x84;
 		s5k4e1gx_reg_pat[S_RES_PREVIEW].comp_bias	= 0x77;
+
+		s5k4e1gx_reg_cand[0].DPHY_bandctrl   = 0xD0;
+		s5k4e1gx_reg_cand[1].DPHY_bandctrl   = 0xD0;
+		s5k4e1gx_reg_cand[0].cds_test 	= 0x00;
+		s5k4e1gx_reg_cand[1].cds_test 	= 0x00;
+		s5k4e1gx_reg_cand[0].rst_offset1 	= 0x90;
+		s5k4e1gx_reg_cand[1].rst_offset1 	= 0x90;
+		s5k4e1gx_reg_cand[0].rmp_init	= 0x84;
+		s5k4e1gx_reg_cand[1].rmp_init	= 0x84;
+		s5k4e1gx_reg_cand[0].comp_bias	= 0x77;
+		s5k4e1gx_reg_cand[1].comp_bias	= 0x77;
+
 	    // Snapshot Analog Setting for EVT2
 		s5k4e1gx_reg_pat[S_RES_CAPTURE].DPHY_bandctrl   = 0xD0;
 		s5k4e1gx_reg_pat[S_RES_CAPTURE].cds_test 	= 0x00;
@@ -586,20 +679,36 @@ static int s5k4e1gx_probe_init_sensor(const struct msm_camera_sensor_info *data)
 	s5k4e1gx_reg_pat[S_RES_PREVIEW].read_mode = 0;
 	s5k4e1gx_reg_pat[S_RES_CAPTURE].read_mode = 0;
 
+	s5k4e1gx_reg_cand[0].v_h_strength = 0x0F; /* 0x0A; */
+	s5k4e1gx_reg_cand[1].v_h_strength = 0x0F; /* 0x0A; */
+	s5k4e1gx_reg_cand[0].data_pclk_strength = 0xFA; /* 0xEA; */
+	s5k4e1gx_reg_cand[1].data_pclk_strength = 0xFA; /* 0xEA; */
+	s5k4e1gx_reg_cand[0].read_mode = 0;
+	s5k4e1gx_reg_cand[1].read_mode = 0;
+
   if (machine_is_lexikon()) {
     s5k4e1gx_reg_pat[S_RES_PREVIEW].read_mode = S5K4E1GX_READ_MIRROR_FLIP;
     s5k4e1gx_reg_pat[S_RES_CAPTURE].read_mode = S5K4E1GX_READ_MIRROR_FLIP;
+    s5k4e1gx_reg_cand[0].read_mode = S5K4E1GX_READ_MIRROR_FLIP;
+    s5k4e1gx_reg_cand[1].read_mode = S5K4E1GX_READ_MIRROR_FLIP;
   }
 
 #ifdef CONFIG_ARCH_MSM7227
     /* Individual Setting for Each Project */
 	if (machine_is_latte()) {
-		s5k4e1gx_reg_pat[S_RES_PREVIEW].pclk_delay = 0x0E; 	//Kevin add to enhance setup time
-		s5k4e1gx_reg_pat[S_RES_CAPTURE].pclk_delay = 0x0E; 	//Kevin add to enhance setup time
-		s5k4e1gx_reg_pat[S_RES_PREVIEW].v_h_strength 	= 0x0F;	//Kevin add to enhance setup time
-		s5k4e1gx_reg_pat[S_RES_CAPTURE].v_h_strength 	= 0x0F;	//Kevin add to enhance setup time
+		s5k4e1gx_reg_pat[S_RES_PREVIEW].pclk_delay = 0x0E; 	/* Kevin add to enhance setup time */
+		s5k4e1gx_reg_pat[S_RES_CAPTURE].pclk_delay = 0x0E; 	/* Kevin add to enhance setup time */
+		s5k4e1gx_reg_pat[S_RES_PREVIEW].v_h_strength 	= 0x0F;	/* Kevin add to enhance setup time */
+		s5k4e1gx_reg_pat[S_RES_CAPTURE].v_h_strength 	= 0x0F;	/* Kevin add to enhance setup time */
 		s5k4e1gx_reg_pat[S_RES_PREVIEW].data_pclk_strength = 0xFA;
 		s5k4e1gx_reg_pat[S_RES_CAPTURE].data_pclk_strength = 0xFA;
+
+		s5k4e1gx_reg_cand[0].pclk_delay = 0x0E; 	/* Kevin add to enhance setup time */
+		s5k4e1gx_reg_cand[1].pclk_delay = 0x0E; 	/* Kevin add to enhance setup time */
+		s5k4e1gx_reg_cand[0].v_h_strength 	= 0x0F;	/* Kevin add to enhance setup time */
+		s5k4e1gx_reg_cand[1].v_h_strength 	= 0x0F;	/* Kevin add to enhance setup time */
+		s5k4e1gx_reg_cand[0].data_pclk_strength = 0xFA;
+		s5k4e1gx_reg_cand[1].data_pclk_strength = 0xFA;
 	}
 
 	if (machine_is_liberty()) {
@@ -609,10 +718,17 @@ static int s5k4e1gx_probe_init_sensor(const struct msm_camera_sensor_info *data)
 		s5k4e1gx_reg_pat[S_RES_CAPTURE].data_pclk_strength = 0xFA; /* 0xEA; */
 		s5k4e1gx_reg_pat[S_RES_PREVIEW].read_mode = S5K4E1GX_READ_MIRROR_FLIP;
 		s5k4e1gx_reg_pat[S_RES_CAPTURE].read_mode = S5K4E1GX_READ_MIRROR_FLIP;
+
+		s5k4e1gx_reg_cand[0].v_h_strength = 0x0F; /* 0x0A; */
+		s5k4e1gx_reg_cand[1].v_h_strength = 0x0F; /* 0x0A; */
+		s5k4e1gx_reg_cand[0].data_pclk_strength = 0xFA; /* 0xEA; */
+		s5k4e1gx_reg_cand[1].data_pclk_strength = 0xFA; /* 0xEA; */
+		s5k4e1gx_reg_cand[0].read_mode = S5K4E1GX_READ_MIRROR_FLIP;
+		s5k4e1gx_reg_cand[1].read_mode = S5K4E1GX_READ_MIRROR_FLIP;
 	}
 #endif
 
-	if (machine_is_glacier()) {
+	if (data->camera_clk_switch != NULL) {
 	rc = s5k4e1gx_i2c_read_b(s5k4e1gx_client->addr, 0x3110, &reg_status);
 		if (rc < 0) {
 			pr_info("%s: 0x3110 read_b fail\n", __func__);
@@ -663,7 +779,7 @@ static void s5k4e1gx_setup_af_tbl(void)
 	uint16_t s5k4e1gx_nl_region_boundary2 = 5;
 	uint16_t s5k4e1gx_nl_region_code_per_step1 = 40;
 	uint16_t s5k4e1gx_nl_region_code_per_step2 = 20;
-	uint16_t s5k4e1gx_l_region_code_per_step = 16; //10 //20100519 modify for VCM full 10cm focus.
+	uint16_t s5k4e1gx_l_region_code_per_step = 12; /* 10 */  /* 20100519 modify for VCM full 10cm focus. */
 
 	s5k4e1gx_pos_tbl[0] = 0;
 
@@ -796,10 +912,6 @@ static int32_t s5k4e1gx_setting(enum msm_s_reg_update rupdate,
 					0},
 				{REG_FRAME_LENGTH_LINES_LSB,
 					0},
-				{REG_LINE_LENGTH_PCK_MSB,
-					s5k4e1gx_reg_pat[rt].line_length_pck_msb},
-				{REG_LINE_LENGTH_PCK_LSB,
-					s5k4e1gx_reg_pat[rt].line_length_pck_lsb},
 			    /* Analog setting */
 				{REG_CDS_TEST,
 					s5k4e1gx_reg_pat[rt].cds_test},
@@ -819,20 +931,6 @@ static int32_t s5k4e1gx_setting(enum msm_s_reg_update rupdate,
 				{REG_DATA_PCLK_STRENGTH,
 					s5k4e1gx_reg_pat[rt].data_pclk_strength},
 
-			    /* Parameter Hold */
-				{S5K4E1GX_REG_GROUP_PARAMETER_HOLD,
-					S5K4E1GX_GROUP_PARAMETER_HOLD},
-				{REG_ANALOGUE_GAIN_CODE_GLOBAL_MSB,
-					s5k4e1gx_reg_pat[rt].analogue_gain_code_global_msb},
-				{REG_ANALOGUE_GAIN_CODE_GLOBAL_LSB,
-					s5k4e1gx_reg_pat[rt].analogue_gain_code_global_lsb},
-				{REG_COARSE_INTEGRATION_TIME_MSB,
-					s5k4e1gx_reg_pat[rt].coarse_integration_time_msb},
-				{REG_COARSE_INTEGRATION_TIME_LSB,
-					s5k4e1gx_reg_pat[rt].coarse_integration_time_lsb},
-			    /* Parameter Unhold */
-				{S5K4E1GX_REG_GROUP_PARAMETER_HOLD,
-					S5K4E1GX_GROUP_PARAMETER_UNHOLD},
 			    /* Streaming ON*/
 #ifndef CONFIG_MSM_CAMERA_7X30
 			{S5K4E1GX_REG_MODE_SELECT, S5K4E1GX_MODE_SELECT_STREAM},
@@ -984,6 +1082,22 @@ static int32_t s5k4e1gx_setting(enum msm_s_reg_update rupdate,
 					S5K4E1GX_MODE_SELECT_SW_STANDBY);
 				if (rc < 0)
 					return rc;
+			/*awii: for the analog*/
+			if (fps_mode_sel == 1) {
+				s5k4e1gx_i2c_write_b
+					(s5k4e1gx_client->addr, 0x30BC, 0xB0);
+				s5k4e1gx_i2c_write_b
+					(s5k4e1gx_client->addr, 0x302B, 0x01);
+				s5k4e1gx_i2c_write_b
+					(s5k4e1gx_client->addr, 0x30BE, 0x1A);
+			} else {
+				s5k4e1gx_i2c_write_b
+					(s5k4e1gx_client->addr, 0x302B, 0x00);
+				s5k4e1gx_i2c_write_b
+					(s5k4e1gx_client->addr, 0x30BC, 0xA0);
+				s5k4e1gx_i2c_write_b
+					(s5k4e1gx_client->addr, 0x30BE, 0x08);
+			}
 
 		    /* Write Setting Table */
 			rc = s5k4e1gx_i2c_write_table(&tbl_3[0],
@@ -1106,7 +1220,17 @@ static int s5k4e1gx_i2c_read_fuseid(struct sensor_cfg_data *cdata)
 static int s5k4e1gx_sensor_open_init(struct msm_camera_sensor_info *data)
 {
 	int32_t  rc;
+	int16_t toUseCand;
 
+	if (fps_mode_sel == 1) {
+		pr_info("s5k4e1gx_setting PREVIEW AT 60FPS THIS TIME\n");
+		toUseCand = 1;
+	} else {
+		pr_info("s5k4e1gx_setting PREVIEW AT normal\n");
+		toUseCand = 0;
+	}
+	memcpy(&(s5k4e1gx_reg_pat[S_RES_PREVIEW]),
+		&(s5k4e1gx_reg_cand[toUseCand]), sizeof(struct reg_struct));
 	s5k4e1gx_ctrl = kzalloc(sizeof(struct s5k4e1gx_ctrl), GFP_KERNEL);
 	if (!s5k4e1gx_ctrl) {
 		pr_err("s5k4e1gx_init failed!\n");
@@ -1123,17 +1247,15 @@ static int s5k4e1gx_sensor_open_init(struct msm_camera_sensor_info *data)
 	if (data)
 		s5k4e1gx_ctrl->sensordata = data;
 
-
-	if (machine_is_glacier()) {
 	/*switch PCLK and MCLK to Main cam*/
-	pr_info("%s: switch clk\n", __func__);
-	if (data->camera_clk_switch != NULL)
+	if (data->camera_clk_switch != NULL) {
+		pr_info("%s: switch clk\n", __func__);
 		data->camera_clk_switch();
-	msleep(10);
+		msleep(10);
 
-	/* Configure CAM GPIO ON (CAM_MCLK)*/
-	pr_info("%s msm_camio_probe_on()\n", __func__);
-	msm_camio_probe_on(s5k4e1_pdev);
+		/* Configure CAM GPIO ON (CAM_MCLK)*/
+		pr_info("%s msm_camio_probe_on()\n", __func__);
+		msm_camio_probe_on(s5k4e1_pdev);
 	}
 
 	/* enable mclk first */
@@ -1193,6 +1315,7 @@ static int32_t s5k4e1gx_power_down(void)
 static int s5k4e1gx_sensor_release(void)
 {
 	int rc = -EBADF;
+	struct msm_camera_sensor_info *sdata = s5k4e1_pdev->dev.platform_data;
 
 	mutex_lock(&s5k4e1gx_mutex);
 
@@ -1213,15 +1336,15 @@ static int s5k4e1gx_sensor_release(void)
 
 	allow_suspend();
 
-	if (machine_is_glacier()) {
+	if (sdata->camera_clk_switch != NULL && sdata->cam_select_pin) {
 	/*0730: optical ask : CLK switch to Main Cam after 2nd Cam release*/
 	pr_info("%s: doing clk switch to Main CAM)\n", __func__);
-	rc = gpio_request(23, "s5k4e1gx");
+	rc = gpio_request(sdata->cam_select_pin, "s5k4e1gx");
 	if (rc < 0)
-		pr_err("GPIO (%d) request fail\n", 23);
+		pr_err("GPIO (%d) request fail\n", sdata->cam_select_pin);
 	else
-		gpio_direction_output(23, 0);
-	gpio_free(23);
+		gpio_direction_output(sdata->cam_select_pin, 0);
+	gpio_free(sdata->cam_select_pin);
 
 	msleep(5);
 	/* CLK switch set 0 */
@@ -1502,6 +1625,7 @@ static int32_t s5k4e1gx_video_config(int mode, int res)
 	s5k4e1gx_ctrl->curr_res = res;
 	s5k4e1gx_ctrl->sensormode = mode;
 
+	preview_frame_count = 0;
 	rc =
 		s5k4e1gx_write_exp_gain(s5k4e1gx_ctrl->my_reg_gain,
 			s5k4e1gx_ctrl->my_reg_line_count);
@@ -1589,8 +1713,8 @@ static int32_t s5k4e1gx_go_to_position(uint32_t lens_pos,
 
 static int32_t s5k4e1gx_move_focus(int direction, int32_t num_steps)
 {
-	uint16_t s5k4e1gx_sw_damping_time_wait=1;
-	uint16_t s5k4e1gx_damping_threshold = 10;
+	uint16_t s5k4e1gx_sw_damping_time_wait = 5;
+	uint16_t s5k4e1gx_damping_threshold = 5;
 	uint8_t  s5k4e1gx_mode_mask = 0x02;
 	int16_t step_direction;
 	int16_t curr_lens_pos;
@@ -1602,7 +1726,8 @@ static int32_t s5k4e1gx_move_focus(int direction, int32_t num_steps)
 	int16_t next_lens_pos;
 	int16_t time_wait_per_step;
 	int32_t rc = 0, time_wait;
-	int8_t s5k4e1gx_sw_damping_required = 0;
+	int8_t s5k4e1gx_sw_damping_required = 1;
+	int32_t s5k4e1gx_sw_damping_step_dynamic = S5K4E1GX_SW_DAMPING_STEP;
 
 	if (num_steps > S5K4E1GX_TOTAL_STEPS_NEAR_TO_FAR)
 		num_steps = S5K4E1GX_TOTAL_STEPS_NEAR_TO_FAR;
@@ -1637,9 +1762,19 @@ static int32_t s5k4e1gx_move_focus(int direction, int32_t num_steps)
 	dest_lens_pos = s5k4e1gx_pos_tbl[dest_step_pos];
 	target_dist = step_direction * (dest_lens_pos - curr_lens_pos);
 
+	if (num_steps > 2) {
+		s5k4e1gx_sw_damping_step_dynamic = 4;
+		s5k4e1gx_sw_damping_time_wait = 4;
+	} else {
+		s5k4e1gx_sw_damping_step_dynamic = 2;
+		s5k4e1gx_sw_damping_time_wait = 2;
+	}
+
 	/* HW damping */
-	if (step_direction < 0 && target_dist >= s5k4e1gx_pos_tbl[s5k4e1gx_damping_threshold]){
-		s5k4e1gx_sw_damping_required = 1;
+	if (step_direction < 0 && target_dist >= s5k4e1gx_pos_tbl[s5k4e1gx_damping_threshold]) {
+		/*s5k4e1gx_sw_damping_required = 1;*/
+		s5k4e1gx_sw_damping_step_dynamic = S5K4E1GX_SW_DAMPING_STEP;
+		s5k4e1gx_sw_damping_time_wait = 1;
 		time_wait = 1000000 / S5K4E1GX_MAX_FPS - S5K4E1GX_SW_DAMPING_STEP * s5k4e1gx_sw_damping_time_wait * 1000;
 	} else
 		time_wait = 1000000 / S5K4E1GX_MAX_FPS;
@@ -1675,8 +1810,8 @@ static int32_t s5k4e1gx_move_focus(int direction, int32_t num_steps)
 	}
 
 	if (s5k4e1gx_sw_damping_required) {
-		small_step = (uint16_t)target_dist/S5K4E1GX_SW_DAMPING_STEP;
-		if ((target_dist % S5K4E1GX_SW_DAMPING_STEP) != 0)
+		small_step = (uint16_t)target_dist/s5k4e1gx_sw_damping_step_dynamic;
+		if ((target_dist % s5k4e1gx_sw_damping_step_dynamic) != 0)
 			small_step = small_step + 1;
 
 		for (next_lens_pos = curr_lens_pos + (step_direction * small_step);
@@ -1735,6 +1870,15 @@ static int32_t s5k4e1gx_set_default_focus(void)
 	s5k4e1gx_ctrl->curr_step_pos = 0;
 
 	return rc;
+}
+
+uint8_t s5k4e1gx_preview_skip_frame(void)
+{
+	if (s5k4e1gx_ctrl->sensormode == SENSOR_PREVIEW_MODE && preview_frame_count < 1) {
+		preview_frame_count++;
+		return 1;
+	}
+	return 0;
 }
 
 static int s5k4e1gx_sensor_config(void __user *argp)
@@ -1885,6 +2029,28 @@ static ssize_t sensor_vendor_show(struct device *dev,
 	return ret;
 }
 
+DEFINE_MUTEX(fps_mode_lock);
+
+static ssize_t sensor_read_fps_mode(struct device *dev,
+				struct device_attribute *attr, char *buf)
+{
+	ssize_t length;
+	mutex_lock(&fps_mode_lock);
+	length = sprintf(buf, "%d\n", fps_mode_sel);
+	mutex_unlock(&fps_mode_lock);
+	return length;
+}
+
+static ssize_t sensor_set_fps_mode(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	uint32_t tmp = 0;
+	mutex_lock(&fps_mode_lock);
+	tmp = buf[0] - 0x30;
+	fps_mode_sel = tmp;
+	mutex_unlock(&fps_mode_lock);
+	return count;
+}
 static ssize_t sensor_read_node(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -1895,6 +2061,8 @@ static ssize_t sensor_read_node(struct device *dev,
 
 static DEVICE_ATTR(sensor, 0444, sensor_vendor_show, NULL);
 static DEVICE_ATTR(node, 0444, sensor_read_node, NULL);
+static DEVICE_ATTR(fps_mode, 0777,
+	sensor_read_fps_mode, sensor_set_fps_mode);
 
 static struct kobject *android_s5k4e1gx = NULL;
 
@@ -1915,6 +2083,13 @@ static int s5k4e1gx_sysfs_init(void)
 		printk(KERN_INFO "s5k4e1gx_sysfs_init : sysfs_create_file " \
 		"failed\n");
 		kobject_del(android_s5k4e1gx);
+	}
+	ret = sysfs_create_file(android_s5k4e1gx, &dev_attr_fps_mode.attr);
+	if (ret) {
+		printk(KERN_INFO "s5k4e1gx_sysfs_init : sysfs_create_file " \
+		"failed\n");
+		ret = -EFAULT;
+		return ret ;
 	}
         ret = sysfs_create_file(android_s5k4e1gx, &dev_attr_node.attr);
 	if (ret) {
@@ -1942,10 +2117,9 @@ static int s5k4e1gx_sensor_probe(struct msm_camera_sensor_info *info,
 	pr_info("s5k4e1gx s->node %d\n", s->node);
 	sensor_probe_node = s->node;
 
-	if (machine_is_glacier()) {
 	/*switch PCLK and MCLK to Main cam*/
-	pr_info("s5k4e1gx: s5k4e1gx_sensor_probe: switch clk\n");
-	if (info->camera_clk_switch != NULL)
+	if (info->camera_clk_switch != NULL) {
+		pr_info("s5k4e1gx: s5k4e1gx_sensor_probe: switch clk\n");
 		info->camera_clk_switch();
 	}
 
@@ -1962,6 +2136,7 @@ static int s5k4e1gx_sensor_probe(struct msm_camera_sensor_info *info,
 	s->s_config  = s5k4e1gx_sensor_config;
 	s5k4e1gx_probe_init_done(info);
 	s5k4e1gx_sysfs_init();
+	info->preview_skip_frame = s5k4e1gx_preview_skip_frame;
 	return rc;
 
 probe_fail:

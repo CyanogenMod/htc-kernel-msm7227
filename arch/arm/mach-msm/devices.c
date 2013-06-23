@@ -23,9 +23,9 @@
 #include <mach/msm_iomap.h>
 #include <mach/dma.h>
 #include <mach/board.h>
-
+#ifdef CONFIG_MSM_RMT_STORAGE_SERVER
 #include "smd_private.h"
-
+#endif
 #include <asm/mach/flash.h>
 #include <linux/mtd/nand.h>
 #include <linux/mtd/partitions.h>
@@ -1215,7 +1215,7 @@ static struct resource msm_vidc_720p_resources[] = {
 };
 
 struct platform_device msm_device_vidc_720p = {
-	.name = "msm_vidc_720p",
+	.name = "msm_vidc",
 	.id = 0,
 	.num_resources = ARRAY_SIZE(msm_vidc_720p_resources),
 	.resource = msm_vidc_720p_resources,

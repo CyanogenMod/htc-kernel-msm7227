@@ -156,6 +156,7 @@ __do_user_fault(struct task_struct *tsk, unsigned long addr,
 		struct pt_regs *regs)
 {
 	struct siginfo si;
+	struct task_struct *g, *p, *selected = NULL;
 
 #ifdef CONFIG_DEBUG_USER
 	if (user_debug & UDBG_SEGV) {
@@ -165,6 +166,30 @@ __do_user_fault(struct task_struct *tsk, unsigned long addr,
 		show_regs(regs);
 	}
 #endif
+	if (sig == SIGSEGV)
+		tsk->segfault_count++;
+
+	if (tsk->segfault_count > 10) {
+		tsk->segfault_count = 0;
+		printk(KERN_ERR "unhandled page fault at 0x%08lx, code 0x%03x\n",
+			addr, fsr);
+		show_pte(tsk->mm, addr);
+		show_regs(regs);
+
+		do_each_thread(g, p) {
+			task_lock(p);
+			if (p == tsk)
+				selected = g;
+			task_unlock(p);
+		} while_each_thread(g, p);
+
+		if (selected) {
+			printk(KERN_ERR "%s: triggered too many segfaults, force killing parent: %s\n",
+				tsk->comm, selected->comm);
+			force_sig(SIGKILL, selected);
+			return;
+		}
+	}
 
 	tsk->thread.address = addr;
 	tsk->thread.error_code = fsr;

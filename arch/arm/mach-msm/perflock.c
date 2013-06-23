@@ -124,10 +124,28 @@ static struct early_suspend perflock_power_suspend = {
 	.level = EARLY_SUSPEND_LEVEL_DISABLE_FB + 1,
 };
 
+/* 7k projects need to raise up cpu freq before panel resume for stability */
+#if defined(CONFIG_HTC_ONMODE_CHARGING) && \
+	(defined(CONFIG_ARCH_MSM7225) || \
+	defined(CONFIG_ARCH_MSM7227) || \
+	defined(CONFIG_ARCH_MSM7201A))
+static struct early_suspend perflock_onchg_suspend = {
+	.suspend = perflock_early_suspend,
+	.resume = perflock_late_resume,
+	.level = EARLY_SUSPEND_LEVEL_DISABLE_FB + 1,
+};
+#endif
+
 static int __init perflock_screen_policy_init(void)
 {
 	register_early_suspend(&perflock_power_suspend);
-
+/* 7k projects need to raise up cpu freq before panel resume for stability */
+#if defined(CONFIG_HTC_ONMODE_CHARGING) && \
+	(defined(CONFIG_ARCH_MSM7225) || \
+	defined(CONFIG_ARCH_MSM7227) || \
+	defined(CONFIG_ARCH_MSM7201A))
+	register_onchg_suspend(&perflock_onchg_suspend);
+#endif
 	screen_on_policy_req++;
 	if (cpufreq_policy)
 		cpufreq_update_policy(cpufreq_policy->cpu);

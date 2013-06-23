@@ -116,6 +116,7 @@ static int gpio_event_call_all_func(struct gpio_event *ip, int func)
 		ii--;
 		if ((func & ~1) == GPIO_EVENT_FUNC_SUSPEND && (*ii)->no_suspend)
 			continue;
+
 		(*ii)->func(ip->input_devs, *ii, &ip->state[i], func & ~1);
 err_func_failed:
 err_no_func:
@@ -240,8 +241,6 @@ static int __init gpio_event_probe(struct platform_device *pdev)
 	}
 
 	err = device_create_file(&(pdev->dev), &dev_attr_fm_radio);
-	if (err)
-		pr_err("%s: Unable create fm_radio attribute file\n", __func__);
 
 	return 0;
 
@@ -280,10 +279,10 @@ static int gpio_event_remove(struct platform_device *pdev)
 	}
 	for (i = 0; i < ip->input_devs->count; i++)
 		input_unregister_device(ip->input_devs->dev[i]);
-	kfree(ip);
 
 	device_remove_file(&(pdev->dev), &dev_attr_fm_radio);
 
+	kfree(ip);
 	return 0;
 }
 

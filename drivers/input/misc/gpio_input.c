@@ -135,10 +135,17 @@ static enum hrtimer_restart gpio_event_input_timer_func(struct hrtimer *timer)
 				"changed to %d\n", ds->info->type,
 				key_entry->code, i, key_entry->gpio, pressed);
 			curcial_oj_send_key(BTN_MOUSE, pressed);
-		} else
+		} else {
 #endif
 			input_event(ds->input_devs->dev[key_entry->dev],
 				ds->info->type, key_entry->code, pressed);
+			if (key_entry->code == SW_LID) {
+				if (ds->info->set_qty_irq)
+					ds->info->set_qty_irq(pressed);
+			}
+#ifdef CONFIG_OPTICALJOYSTICK_CRUCIAL
+		}
+#endif
 	}
 
 #if 0
@@ -209,10 +216,17 @@ static irqreturn_t gpio_event_input_irq_handler(int irq, void *dev_id)
 #ifdef CONFIG_OPTICALJOYSTICK_CRUCIAL
 		if (ds->info->info.oj_btn && key_entry->code == BTN_MOUSE) {
 			curcial_oj_send_key(BTN_MOUSE, pressed);
-		} else
+		} else {
 #endif
 			input_event(ds->input_devs->dev[key_entry->dev],
 				ds->info->type, key_entry->code, pressed);
+			if (key_entry->code == SW_LID) {
+				if (ds->info->set_qty_irq)
+					ds->info->set_qty_irq(pressed);
+			}
+#ifdef CONFIG_OPTICALJOYSTICK_CRUCIAL
+		}
+#endif
 	}
 	return IRQ_HANDLED;
 }
@@ -267,8 +281,8 @@ int gpio_event_input_func(struct gpio_event_input_devs *input_devs,
 	di = container_of(info, struct gpio_event_input_info, info);
 
 	if (func == GPIO_EVENT_FUNC_SUSPEND) {
-		irq_status = (gpio_event_get_phone_call_status() & 0x01) ||
-			     (gpio_event_get_fm_radio_status() & 0x01);
+		irq_status = (gpio_event_get_phone_call_status() & 0x01)
+			  || (gpio_event_get_fm_radio_status() & 0x01);
 		pr_info("%s: set irq_status = %d\n", __func__, irq_status);
 
 		if (ds->use_irq) {

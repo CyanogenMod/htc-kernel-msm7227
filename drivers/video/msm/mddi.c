@@ -410,8 +410,6 @@ static uint16_t mddi_init_registers(struct mddi_info *mddi)
 	mddi_writel(MDDI_HOST_TA2_LEN, TA2_LEN);
 	mddi_writel(0x003C, DISP_WAKE); /* wakeup counter */
 	mddi_writel(MDDI_HOST_REV_RATE_DIV, REV_RATE_DIV);
-	if (mddi->type == MSM_MDP_MDDI_TYPE_II)
-		mddi_writel(0x01, SF_LEN_CTL_REG);
 
 	mddi_writel(MDDI_REV_BUFFER_SIZE, REV_SIZE);
 	mddi_writel(MDDI_MAX_REV_PKT_SIZE, REV_ENCAP_SZ);
@@ -440,7 +438,7 @@ static uint16_t mddi_init_registers(struct mddi_info *mddi)
 	mddi_writel(0x0050, DRIVE_LO);
 	mddi_writel(0x00320000, PAD_IO_CTL);
 	if (mddi->type == MSM_MDP_MDDI_TYPE_II)
-		mddi_writel(0x40884020, PAD_CAL);
+		mddi_writel(0x40880020, PAD_CAL);
 	else
 		mddi_writel(0x00220020, PAD_CAL);
 #else
@@ -887,7 +885,7 @@ static ssize_t mddi_reg_write(struct file *file, const char __user *user_buf,
 
 	memset(debug_buf, 0x00, sizeof(debug_buf));
 
-        if (count > sizeof(debug_buf))
+        if (count >= sizeof(debug_buf))
                 return -EFAULT;
 
         if (copy_from_user(debug_buf, user_buf, count))
@@ -896,7 +894,7 @@ static ssize_t mddi_reg_write(struct file *file, const char __user *user_buf,
         debug_buf[count] = 0;   /* end of string */
 
 	if (debug_buf[0] == 'w') {
-		cnt = sscanf(debug_buf, "%s %x %x", &type ,&reg, &data);
+		cnt = sscanf(debug_buf, "%c %x %x", &type ,&reg, &data);
 		mddi_set_auto_hibernate(&mddi->client_data, 0);
 		mddi_remote_write(&mddi->client_data, data, reg);
 		mddi_set_auto_hibernate(&mddi->client_data, 1);
@@ -905,7 +903,7 @@ static ssize_t mddi_reg_write(struct file *file, const char __user *user_buf,
 			 "[W] reg=0x%x val=0x%x\n", reg, data);
 		printk(KERN_INFO "%s: reg=%x val=%x\n", __func__, reg, data);
 	} else {
-		cnt = sscanf(debug_buf, "%s %x", &type ,&reg);
+		cnt = sscanf(debug_buf, "%c %x", &type ,&reg);
 
 		len = snprintf(mddi->debugfs_buf, sizeof(mddi->debugfs_buf),
 			 "[R] reg=0x%x val=0x%x\n", reg,

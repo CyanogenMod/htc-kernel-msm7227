@@ -114,4 +114,10 @@ config INPUT_ISL29028
 	  Say Y here to enable the ISL29028 Short Distance Proximity
 	  Sensor with Ambient Light Sensor.
 
+config INPUT_CAPELLA_CM3628
+	tristate "CM3628 proximity and light sensor"
+	help
+	  Say Y here to enable the CM3628 Short Distance Proximity
+	  Sensor with Ambient Light Sensor.
+
 endmenu

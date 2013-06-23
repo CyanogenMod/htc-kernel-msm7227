@@ -1542,6 +1542,7 @@ struct task_struct {
 	unsigned long trace_recursion;
 #endif /* CONFIG_TRACING */
 	cputime64_t             iowait;
+	int segfault_count;
 };
 
 /* Future-safe accessor for struct task_struct's cpus_allowed. */

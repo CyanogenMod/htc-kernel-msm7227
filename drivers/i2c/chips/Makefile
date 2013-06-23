@@ -27,6 +27,7 @@ obj-$(CONFIG_ARCH_MSM_FLASHLIGHT)	+= adp1650_flashlight.o
 obj-$(CONFIG_INPUT_ISL29028)	+= isl29028.o
 obj-$(CONFIG_SMB329)            += smb329.o
 obj-$(CONFIG_TPS65200)          += tps65200.o
+obj-$(CONFIG_INPUT_CAPELLA_CM3628)          += cm3628.o
 
 ifeq ($(CONFIG_I2C_DEBUG_CHIP),y)
 EXTRA_CFLAGS += -DDEBUG

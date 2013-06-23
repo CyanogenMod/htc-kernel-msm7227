@@ -27,7 +27,6 @@
 #include "smd_debug.h"
 
 
-#if CONFIG_SMD_OFFSET_TCXO_STAT
 enum {
 	F_SCREEN_OFF = 0,
 	F_SUSPEND,
@@ -47,11 +46,22 @@ struct smem_sleep_stat {
 	uint32_t mo_3g_probe_cnt;
 	uint32_t reserved[5];
 };
+
+struct smem_negate_client {
+	uint32_t htc_negate_tcxo_client[16];
+	uint32_t tcxo_cnt_during_suspend;
+	uint32_t htc_total_sleep_clients;
+};
+
 static struct smem_sleep_stat *sleep_stat;
 static struct smem_sleep_stat *get_smem_sleep_stat(void)
 {
+#if CONFIG_SMD_OFFSET_TCXO_STAT
 	return (struct smem_sleep_stat *)
 		(MSM_SHARED_RAM_BASE + CONFIG_SMD_OFFSET_TCXO_STAT);
+#else
+	return 0;
+#endif
 }
 
 static void print_sleep_stat(int flag)
@@ -79,6 +89,43 @@ static void print_sleep_stat(int flag)
 
 }
 
+static struct smem_negate_client *negate_client_stat;
+static struct smem_negate_client *get_smem_negate_client_stat(void)
+{
+#if CONFIG_SMD_OFFSET_NEGATE_CLIENT_STAT
+	return (struct smem_negate_client *)
+		(MSM_SHARED_RAM_BASE + CONFIG_SMD_OFFSET_NEGATE_CLIENT_STAT);
+#else
+	return 0;
+#endif
+}
+
+static void print_negate_client_stat(void)
+{
+	if (!negate_client_stat)
+		return;
+
+	pr_info("negate_client_stat: %d - %d %d %d %d - %d %d %d %d - %d %d %d %d - %d %d %d %d - %d\n",
+		negate_client_stat->tcxo_cnt_during_suspend,
+		negate_client_stat->htc_negate_tcxo_client[0],
+		negate_client_stat->htc_negate_tcxo_client[1],
+		negate_client_stat->htc_negate_tcxo_client[2],
+		negate_client_stat->htc_negate_tcxo_client[3],
+		negate_client_stat->htc_negate_tcxo_client[4],
+		negate_client_stat->htc_negate_tcxo_client[5],
+		negate_client_stat->htc_negate_tcxo_client[6],
+		negate_client_stat->htc_negate_tcxo_client[7],
+		negate_client_stat->htc_negate_tcxo_client[8],
+		negate_client_stat->htc_negate_tcxo_client[9],
+		negate_client_stat->htc_negate_tcxo_client[10],
+		negate_client_stat->htc_negate_tcxo_client[11],
+		negate_client_stat->htc_negate_tcxo_client[12],
+		negate_client_stat->htc_negate_tcxo_client[13],
+		negate_client_stat->htc_negate_tcxo_client[14],
+		negate_client_stat->htc_negate_tcxo_client[15],
+		negate_client_stat->htc_total_sleep_clients);
+}
+
 static int sleep_stat_suspend_notifier(struct notifier_block *nb,
 	unsigned long event, void *dummy)
 {
@@ -90,6 +137,7 @@ static int sleep_stat_suspend_notifier(struct notifier_block *nb,
 	/* exit suspend */
 	case PM_POST_SUSPEND:
 		print_sleep_stat(F_RESUME);
+		print_negate_client_stat();
 		return NOTIFY_OK;
 	default:
 		return NOTIFY_DONE;
@@ -114,7 +162,6 @@ static struct early_suspend sleep_stat_screen_hdl = {
 	.suspend = sleep_stat_early_suspend,
 	.resume = sleep_stat_late_resume,
 };
-#endif
 
 #if defined(CONFIG_DEBUG_FS)
 
@@ -359,6 +406,7 @@ static int __init smd_debugfs_init(void)
 	debug_create("build", 0444, dent, debug_read_build_id);
 #if CONFIG_SMD_OFFSET_TCXO_STAT
 	sleep_stat = get_smem_sleep_stat();
+	negate_client_stat = get_smem_negate_client_stat();
 	register_early_suspend(&sleep_stat_screen_hdl);
 	register_pm_notifier(&sleep_stat_notif_block);
 #else

@@ -21,7 +21,7 @@
 #include <linux/sched.h>
 #include <linux/syscalls.h>
 
-
+#define KEYRESET_DELAY 3*HZ
 struct keyreset_state {
 	struct input_handler input_handler;
 	unsigned long keybit[BITS_TO_LONGS(KEY_CNT)];
@@ -34,15 +34,16 @@ struct keyreset_state {
 	int restart_disabled;
 };
 
-int restart_requested;
+static int restart_requested;
 static void deferred_restart(struct work_struct *dummy)
 {
+	pr_info("keyreset::%s in\n", __func__);
 	restart_requested = 2;
 	sys_sync();
 	restart_requested = 3;
 	kernel_restart(NULL);
 }
-static DECLARE_WORK(restart_work, deferred_restart);
+static DECLARE_DELAYED_WORK(restart_work, deferred_restart);
 
 static void keyreset_event(struct input_handle *handle, unsigned int type,
 			   unsigned int code, int value)
@@ -87,8 +88,14 @@ static void keyreset_event(struct input_handle *handle, unsigned int type,
 		if (restart_requested)
 			panic("keyboard reset failed, %d", restart_requested);
 		pr_info("keyboard reset\n");
-		schedule_work(&restart_work);
+		schedule_delayed_work(&restart_work, KEYRESET_DELAY);
 		restart_requested = 1;
+	} else if (restart_requested == 1) {
+		if (cancel_delayed_work(&restart_work)) {
+			pr_info("%s: cancel restart work\n", __func__);
+			restart_requested = 0;
+		} else
+			pr_info("%s: cancel failed\n", __func__);
 	}
 done:
 	spin_unlock_irqrestore(&state->lock, flags);

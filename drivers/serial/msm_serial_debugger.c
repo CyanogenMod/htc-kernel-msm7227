@@ -701,8 +701,10 @@ static int msm_serial_debug_remove(const char *val, struct kernel_param *kp)
 	msm_fiq_set_handler(NULL, 0);
 	msm_fiq_disable(init_data.irq);
 	msm_fiq_unselect(init_data.irq);
-	if (debug_clk_enabled)
+	if (debug_clk_enabled) {
 		clk_disable(debug_clk);
+		debug_clk_enabled = 0;
+	}
 	wake_lock_destroy(&debugger_wake_lock);
 	printk(KERN_INFO "disable FIQ serial debugger\n");
 	return 0;

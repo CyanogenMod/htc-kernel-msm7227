@@ -388,11 +388,13 @@ ENDPROC(sys_clone_wrapper)
 
 sys_sigreturn_wrapper:
 		add	r0, sp, #S_OFF
+		mov	why, #0
 		b	sys_sigreturn
 ENDPROC(sys_sigreturn_wrapper)
 
 sys_rt_sigreturn_wrapper:
 		add	r0, sp, #S_OFF
+		mov	why, #0
 		b	sys_rt_sigreturn
 ENDPROC(sys_rt_sigreturn_wrapper)
 

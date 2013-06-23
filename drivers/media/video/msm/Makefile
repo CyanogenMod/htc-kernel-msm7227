@@ -4,10 +4,15 @@ obj-$(CONFIG_OV9665) += ov9665.o ov9665_reg.o
 obj-$(CONFIG_MT9P012) += mt9p012_fox.o mt9p012_reg.o
 obj-$(CONFIG_MSM_CAMERA_LEGACY) += msm_camera.o
 #msm_v4l2.o
-obj-$(CONFIG_MSM_CAMERA_7X30) += msm_camera-7x30.o msm_vfe31.o msm_io_vfe31.o msm_axi_qos.o
+obj-$(CONFIG_MSM_CAMERA_7X30) += msm_camera-7x30.o msm_vfe31.o msm_io_vfe31.o msm_axi_qos.o msm_vpe1.o
 obj-$(CONFIG_S5K3E2FX) += s5k3e2fx.o
 obj-$(CONFIG_S5K4E1GX) += s5k4e1gx.o s5k4e1gx_reg.o
-obj-$(CONFIG_S5K6AAFX) += s5k6aafx.o s5k6aafx_reg.o
+ifdef CONFIG_S5K6AAFX
+obj-$(CONFIG_MACH_MECHA) += s5k6aafx.o s5k6aafx_reg_mecha.o
+obj-$(CONFIG_MACH_FLYER) += s5k6aafx.o s5k6aafx_reg_flyer.o
+obj-$(CONFIG_MACH_VIVO) += s5k6aafx.o s5k6aafx_reg_vivo.o
+obj-$(CONFIG_MACH_VIVOW) += s5k6aafx.o s5k6aafx_reg_vivo.o
+endif
 obj-$(CONFIG_ARCH_MSM_ARM11) += msm_vfe7x.o msm_io7x.o
 obj-$(CONFIG_ARCH_QSD8X50) += msm_vfe8x.o msm_vfe8x_proc.o msm_io8x.o
 obj-$(CONFIG_VB6801) += vb6801.o

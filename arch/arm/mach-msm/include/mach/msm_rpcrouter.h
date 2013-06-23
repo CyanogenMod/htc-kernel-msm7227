@@ -180,6 +180,22 @@ struct msm_rpc_xdr {
 	struct msm_rpc_endpoint *ept;
 };
 
+int xdr_send_int8(struct msm_rpc_xdr *xdr, const int8_t *value);
+int xdr_send_uint8(struct msm_rpc_xdr *xdr, const uint8_t *value);
+int xdr_send_int16(struct msm_rpc_xdr *xdr, const int16_t *value);
+int xdr_send_uint16(struct msm_rpc_xdr *xdr, const uint16_t *value);
+int xdr_send_int32(struct msm_rpc_xdr *xdr, const int32_t *value);
+int xdr_send_uint32(struct msm_rpc_xdr *xdr, const uint32_t *value);
+int xdr_send_bytes(struct msm_rpc_xdr *xdr, const void **data, uint32_t *size);
+
+int xdr_recv_int8(struct msm_rpc_xdr *xdr, int8_t *value);
+int xdr_recv_uint8(struct msm_rpc_xdr *xdr, uint8_t *value);
+int xdr_recv_int16(struct msm_rpc_xdr *xdr, int16_t *value);
+int xdr_recv_uint16(struct msm_rpc_xdr *xdr, uint16_t *value);
+int xdr_recv_int32(struct msm_rpc_xdr *xdr, int32_t *value);
+int xdr_recv_uint32(struct msm_rpc_xdr *xdr, uint32_t *value);
+int xdr_recv_bytes(struct msm_rpc_xdr *xdr, void **data, uint32_t *size);
+
 struct msm_rpc_server
 {
 	struct list_head list;

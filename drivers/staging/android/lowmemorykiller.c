@@ -244,9 +244,11 @@ static int lowmem_shrink(int nr_to_scan, gfp_t gfp_mask)
 		if (!ignore_lowmem_deathpending) {
 			lowmem_deathpending = selected;
 			lowmem_deathpending_retries = 0;
+			lowmem_print(1, "registering notifier");
 			task_free_register(&task_nb);
 		}
 		force_sig(SIGKILL, selected);
+		lowmem_print(1, "...done.\n");
 		rem -= selected_tasksize;
 	}
 	else {

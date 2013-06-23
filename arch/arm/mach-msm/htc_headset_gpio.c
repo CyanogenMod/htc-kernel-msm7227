@@ -121,7 +121,7 @@ static void hs_gpio_register(void)
 	}
 }
 
-static int audiojack_probe(struct platform_device *pdev)
+static int htc_headset_gpio_probe(struct platform_device *pdev)
 {
 	int ret;
 	struct htc_headset_gpio_platform_data *pdata = pdev->dev.platform_data;
@@ -193,17 +193,18 @@ err_set_detect_gpio:
 		gpio_free(hi->pdata.hpin_gpio);
 
 err_gpio_request:
+	wake_lock_destroy(&hi->hs_wake_lock);
 	destroy_workqueue(detect_wq);
 
 err_create_detect_work_queue:
 	kfree(hi);
 
-	HS_LOG("Audiojack: Failed in audiojack_probe");
+	HS_LOG("Failed to register %s driver", DRIVER_NAME);
 
 	return ret;
 }
 
-static int audiojack_remove(struct platform_device *pdev)
+static int htc_headset_gpio_remove(struct platform_device *pdev)
 {
 	if (hi->pdata.hpin_gpio)
 		free_irq(hi->hpin_irq, 0);
@@ -211,32 +212,35 @@ static int audiojack_remove(struct platform_device *pdev)
 	if (hi->pdata.hpin_gpio)
 		gpio_free(hi->pdata.hpin_gpio);
 
+	wake_lock_destroy(&hi->hs_wake_lock);
+	destroy_workqueue(detect_wq);
+
 	kfree(hi);
 
 	return 0;
 }
 
-static struct platform_driver audiojack_driver = {
-	.probe		= audiojack_probe,
-	.remove		= audiojack_remove,
+static struct platform_driver htc_headset_gpio_driver = {
+	.probe		= htc_headset_gpio_probe,
+	.remove		= htc_headset_gpio_remove,
 	.driver		= {
 		.name		= "HTC_HEADSET_GPIO",
 		.owner		= THIS_MODULE,
 	},
 };
 
-static int __init audiojack_init(void)
+static int __init htc_headset_gpio_init(void)
 {
-	return platform_driver_register(&audiojack_driver);
+	return platform_driver_register(&htc_headset_gpio_driver);
 }
 
-static void __exit audiojack_exit(void)
+static void __exit htc_headset_gpio_exit(void)
 {
-	platform_driver_unregister(&audiojack_driver);
+	platform_driver_unregister(&htc_headset_gpio_driver);
 }
 
-module_init(audiojack_init);
-module_exit(audiojack_exit);
+module_init(htc_headset_gpio_init);
+module_exit(htc_headset_gpio_exit);
 
 MODULE_DESCRIPTION("HTC GPIO headset driver");
 MODULE_LICENSE("GPL");

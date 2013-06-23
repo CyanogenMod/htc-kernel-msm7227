@@ -46,7 +46,7 @@ struct msm_ptbl_entry
 	__u32 flags;
 };
 
-#define MSM_MAX_PARTITIONS 11
+#define MSM_MAX_PARTITIONS 16
 
 static struct mtd_partition msm_nand_partitions[MSM_MAX_PARTITIONS];
 static char msm_nand_names[MSM_MAX_PARTITIONS * 16];

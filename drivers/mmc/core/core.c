@@ -195,6 +195,15 @@ static void mmc_wait_done(struct mmc_request *mrq)
 	complete(mrq->done_data);
 }
 
+struct msmsdcc_host;
+void msmsdcc_request_end(struct msmsdcc_host *host, struct mmc_request *mrq);
+void msmsdcc_stop_data(struct msmsdcc_host *host);
+
+#ifdef CONFIG_WIMAX
+int mmc_wimax_set_wait_for_req_timeout_trigger_counter(int counter);
+int mmc_wimax_get_wait_for_req_timeout_trigger_counter(void);
+#endif
+
 /**
  *	mmc_wait_for_req - start a request and wait for completion
  *	@host: MMC host to start command
@@ -206,14 +215,39 @@ static void mmc_wait_done(struct mmc_request *mrq)
  */
 void mmc_wait_for_req(struct mmc_host *host, struct mmc_request *mrq)
 {
+	int ret = 0;
+
 	DECLARE_COMPLETION_ONSTACK(complete);
+
+	msmsdcc_wait_for_host_resume(host);
 
 	mrq->done_data = &complete;
 	mrq->done = mmc_wait_done;
 
 	mmc_start_request(host, mrq);
 
-	wait_for_completion(&complete);
+	// wait_for_completion(&complete);
+    ret = wait_for_completion_timeout(&complete, msecs_to_jiffies(5000));
+
+#ifdef CONFIG_WIMAX
+	if (mmc_wimax_get_wait_for_req_timeout_trigger_counter())
+	{
+		mmc_wimax_set_wait_for_req_timeout_trigger_counter(mmc_wimax_get_wait_for_req_timeout_trigger_counter()-1);
+		printk("[ERR] %s: %s force wait_for_completion_timeout!\n", __func__, mmc_hostname(host));
+		ret = -1;
+	}
+#endif
+
+	if (ret <= 0) {
+		struct msmsdcc_host *msm_host = mmc_priv(host);
+ 		printk("[ERR] %s: %s wait_for_completion_timeout!\n", __func__, mmc_hostname(host));
+		
+		msmsdcc_stop_data(msm_host);
+
+		mrq->cmd->error = -ETIMEDOUT;
+		msmsdcc_request_end(msm_host, mrq); 	
+	}
+
 }
 
 EXPORT_SYMBOL(mmc_wait_for_req);
@@ -417,7 +451,8 @@ static int mmc_host_do_disable(struct mmc_host *host, int lazy)
 		if (err > 0) {
 			unsigned long delay = msecs_to_jiffies(err);
 
-			mmc_schedule_delayed_work(&host->disable, delay);
+			wake_lock(&host->wakelock);
+			queue_delayed_work(workqueue, &host->disable, delay);
 		}
 	}
 	host->enabled = 0;
@@ -575,7 +610,8 @@ int mmc_host_lazy_disable(struct mmc_host *host)
 		return 0;
 
 	if (host->disable_delay) {
-		mmc_schedule_delayed_work(&host->disable,
+		wake_lock(&host->wakelock);
+		queue_delayed_work(workqueue, &host->disable,
 				msecs_to_jiffies(host->disable_delay));
 		return 0;
 	} else

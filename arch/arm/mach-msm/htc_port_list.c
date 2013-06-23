@@ -116,15 +116,28 @@ static void update_port_list(void) {
 }
 
 static struct p_list *add_list(int no) {
-	struct p_list *ptr;
+    struct p_list *ptr;
+    struct list_head *listptr;
+    struct p_list *entry;
+    int get_list = 0;
 
-	ptr = kmalloc(sizeof(struct p_list), GFP_KERNEL);
-	if(ptr) {
-		ptr->no = no;
-		list_add_tail(&ptr->list, &curr_port_list.list);
-		printk(KERN_INFO "[Port list] Add port [%d]\n", no);
-	}
-	return (ptr);
+    list_for_each(listptr, &curr_port_list.list) {
+        entry = list_entry(listptr, struct p_list, list);
+        if (entry->no == no) {
+            printk(KERN_INFO "[Port list] Port %d is already in the list!", entry->no);
+            get_list = 1;
+            break;
+        }
+    }
+    if(!get_list) {
+        ptr = kmalloc(sizeof(struct p_list), GFP_KERNEL);
+        if(ptr) {
+            ptr->no = no;
+            list_add_tail(&ptr->list, &curr_port_list.list);
+            printk(KERN_INFO "[Port list] Add port [%d]\n", no);
+        }
+    }
+    return (ptr);
 }
 
 static void remove_list(int no) {

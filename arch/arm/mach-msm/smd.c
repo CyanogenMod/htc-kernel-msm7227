@@ -174,6 +174,8 @@ uint32_t raw_smsm_get_state(enum smsm_state_item item)
 static int check_for_modem_crash(void)
 {
 	if (raw_smsm_get_state(SMSM_STATE_MODEM) & SMSM_RESET) {
+		dump_stack();
+		msm_pm_flush_console();
 		handle_modem_crash();
 		return -1;
 	}
@@ -281,10 +283,6 @@ static void smd_channel_probe_worker(struct work_struct *work)
 		return;
 	}
 	for (n = 0; n < 64; n++) {
-		printk("[dzt] smd_ch_allicated[%d]=%d\n", n, smd_ch_allocated[n]);
-		printk("[dzt] shared[%d].ctype = %x\n", n, shared[n].ctype);
-		printk("[dzt] shared[%d].name = %s\n", n, shared[n].name);
-
 		if (smd_ch_allocated[n])
 			continue;
 		if (!shared[n].ref_count)
